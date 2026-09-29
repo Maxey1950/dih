@@ -1,0 +1,31 @@
+{
+  "name": "revival",
+  "version": "0.1.0",
+  "private": true,
+  "description": "2016-style revival: AlphaBlox-derived web frontend, clean API, PostgreSQL, launcher, RFD v347.",
+  "workspaces": [
+    "shared",
+    "api",
+    "database"
+  ],
+  "scripts": {
+    "build": "npm run build -w @revival/shared && npm run build -w @revival/api",
+    "test": "npm run build -w @revival/shared && npm test -w @revival/api",
+    "typecheck": "npm run build -w @revival/shared && npm run typecheck -w @revival/api",
+    "db:validate": "npm run validate -w @revival/database",
+    "dev:api": "npm run build -w @revival/shared && npm run dev -w @revival/api",
+    "dev:web": "npm run dev --prefix web",
+    "build:web": "npm run build --prefix web",
+    "audit:all": "npm audit && npm audit --prefix web"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "mysql2": "^3.24.5",
+    "deepmerge-ts": "^8.0.2"
+  }
+}

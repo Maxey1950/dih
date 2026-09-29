@@ -1,7 +1,11 @@
 # AlphaBlox-next → New Revival: Migration Map
 
 Source inspected: `https://github.com/singharaj-usai/alphablox-next` @ `715903d952060e85a009b8ac3f41ae099dc9e167` (2026-01-21), shallow clone.
-Scope: read-only defensive audit + migration planning. Nothing from the donor has been copied into this repo yet.
+Scope: read-only defensive audit + migration planning.
+
+> **Status:** Phase 1 is done. The frontend now lives in `web/` (see the root `README.md`), and the
+> dependency changes are in `docs/dependency-security.md`. The donor backend and binaries were not imported
+> (`docs/legacy-donor.md`). Endpoint paths in `web/src/lib/api.js` follow the "Replacement API map" below.
 
 ---
 
