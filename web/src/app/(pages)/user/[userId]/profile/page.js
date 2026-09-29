@@ -5,17 +5,17 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { useAuth } from '../../../../../contexts/AuthContext';
-import { usersApi, friendRequestsApi, errorMessage } from '../../../../../lib/api';
+import { usersApi, friendsApi, errorMessage } from '../../../../../lib/api';
 import { listGamesByCreator } from '../../../../../lib/games';
 import UserAvatar from '../../../../../components/UserAvatar';
 
 /**
  * Expected GET /api/users/:id response (see shared/src/schemas.ts):
  * {
- *   user: { id, username, blurb, isOnline, lastSeenAt, createdAt, membershipType },
+ *   user: { id, username, displayName, description, role, isOnline, lastOnlineAt, createdAt },
  *   stats: { friendCount, followerCount, followingCount },
- *   relationship: { friendship: { status: 'none'|'pending'|'accepted', requestId?, direction?: 'incoming'|'outgoing' },
- *                   isFollowing }   // present only when logged in
+ *   relationship: { friendship: { status: 'none'|'pending'|'accepted', direction: 'incoming'|'outgoing'|null },
+ *                   isFollowing }   // null when logged out or viewing your own profile
  * }
  */
 export default function UserProfile() {
@@ -71,7 +71,7 @@ export default function UserProfile() {
       // Ownership comes from the session (GET /api/auth/me), never from a token.
       isOwnProfile: !!currentUser && String(currentUser.id) === String(u.id),
     });
-    setBlurb(u.blurb ?? '');
+    setBlurb(u.description ?? '');
     setFriendCount(data?.stats?.friendCount ?? 0);
     setFollowersCount(data?.stats?.followerCount ?? 0);
     setFollowingCount(data?.stats?.followingCount ?? 0);
@@ -82,7 +82,7 @@ export default function UserProfile() {
   const loadFriends = useCallback(async () => {
     try {
       const data = await usersApi.friends(userId);
-      setFriends(data?.friends ?? []);
+      setFriends(data?.users ?? []);
     } catch {
       setFriends([]);
     }
@@ -122,6 +122,7 @@ export default function UserProfile() {
         setFollowersCount((c) => c + 1);
       }
       setIsFollowing(!isFollowing);
+      await loadProfile();
     } catch (err) {
       setError(errorMessage(err, 'Error performing follow action'));
     }
@@ -139,7 +140,7 @@ export default function UserProfile() {
         setError('Blurb must be less than 500 characters');
         return;
       }
-      await usersApi.updateMe({ blurb: tempBlurb });
+      await usersApi.updateMe({ description: tempBlurb });
       setBlurb(tempBlurb);
       setIsEditingBlurb(false);
       setError('');
@@ -200,8 +201,8 @@ export default function UserProfile() {
   // One explicit function per action; no URL is built from an action name.
   const sendFriendRequest = async () => {
     try {
-      await usersApi.sendFriendRequest(userId);
-      setFriendStatus({ status: 'pending', direction: 'outgoing' });
+      await friendsApi.sendRequest(userId);
+      await loadProfile();
     } catch (err) {
       setError(errorMessage(err, 'Error sending friend request'));
     }
@@ -209,9 +210,8 @@ export default function UserProfile() {
 
   const acceptFriendRequest = async () => {
     try {
-      await friendRequestsApi.accept(friendStatus.requestId);
-      setFriendStatus({ status: 'accepted' });
-      loadFriends();
+      await friendsApi.accept(userId);
+      await Promise.all([loadProfile(), loadFriends()]);
     } catch (err) {
       setError(errorMessage(err, 'Error accepting friend request'));
     }
@@ -219,8 +219,8 @@ export default function UserProfile() {
 
   const declineFriendRequest = async () => {
     try {
-      await friendRequestsApi.decline(friendStatus.requestId);
-      setFriendStatus({ status: 'none' });
+      await friendsApi.remove(userId);
+      await loadProfile();
     } catch (err) {
       setError(errorMessage(err, 'Error declining friend request'));
     }
@@ -228,9 +228,8 @@ export default function UserProfile() {
 
   const unfriend = async () => {
     try {
-      await usersApi.unfriend(userId);
-      setFriendStatus({ status: 'none' });
-      loadFriends();
+      await friendsApi.remove(userId);
+      await Promise.all([loadProfile(), loadFriends()]);
     } catch (err) {
       setError(errorMessage(err, 'Error removing friend'));
     }
@@ -316,9 +315,12 @@ export default function UserProfile() {
               <div className="col">
                 <div className="d-flex flex-column h-100">
                   <div>
-                    <h2 className="mb-1">{profile.username}</h2>
+                    <h2 className="mb-1">{profile.displayName}</h2>
+                    {profile.displayName !== profile.username && (
+                      <div className="text-body-secondary mb-1">@{profile.username}</div>
+                    )}
                     <div className="d-flex align-items-center gap-2 mb-3">
-                      <span className="badge bg-primary">{profile.membershipType || 'Member'}</span>
+                      <span className="badge bg-primary">{profile.role === 'admin' ? 'Administrator' : profile.role === 'moderator' ? 'Moderator' : 'Member'}</span>
                     </div>
                   </div>
 
@@ -463,7 +465,7 @@ export default function UserProfile() {
                           <div>
                             <h6 className="mb-1 text-body-secondary">Last Online</h6>
                             <p className="mb-0 fw-medium">
-                              {profile.lastSeenAt ? new Date(profile.lastSeenAt).toLocaleDateString() : "N/A"}
+                              {profile.isOnline ? "Online now" : profile.lastOnlineAt ? new Date(profile.lastOnlineAt).toLocaleDateString() : "N/A"}
                             </p>
                           </div>
                         </div>

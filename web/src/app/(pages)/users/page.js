@@ -7,8 +7,8 @@ import { debounce } from "../../../lib/utils/debounce";
 import UserAvatar from "../../../components/UserAvatar";
 
 /**
- * Expected GET /api/users?query=&page=&limit= response:
- * { users: [{ id, username, blurb, isOnline, lastSeenAt }], page, totalPages, total }
+ * GET /api/users?search=&page=&limit= response:
+ * { users: [{ id, username, displayName, description, isOnline, lastOnlineAt }], page, limit, totalPages, total }
  * Search and paging are done by the server; the client never downloads every user.
  */
 export default function UsersPage() {
@@ -26,7 +26,7 @@ export default function UsersPage() {
     let cancelled = false;
     const fetchUsers = async () => {
       try {
-        const data = await usersApi.list({ query, page: currentPage, limit: usersPerPage });
+        const data = await usersApi.search({ search: query || undefined, page: currentPage, limit: usersPerPage });
         if (cancelled) return;
         setPageUsers(data?.users ?? []);
         setTotal(data?.total ?? 0);
@@ -135,12 +135,12 @@ export default function UsersPage() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <p className="text-body-secondary mb-0 text-truncate" style={{ maxWidth: "300px" }}>
-                                                  {user.blurb || "This user hasn't written anything yet."}
+                                                  {user.description || "This user hasn't written anything yet."}
                                                 </p>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <small className="text-body-secondary">
-                                                    {user.lastSeenAt ? new Date(user.lastSeenAt).toLocaleString('en-US', {
+                                                    {user.lastOnlineAt ? new Date(user.lastOnlineAt).toLocaleString('en-US', {
                                                         month: '2-digit',
                                                         day: '2-digit', 
                                                         year: 'numeric',

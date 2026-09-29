@@ -10,12 +10,25 @@
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
-    "migrate:diff": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script"
+    "migrate:diff": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script",
+    "build": "prisma generate && tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@prisma/client": "^7.10.0"
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "prisma": "^7.10.0"
+    "@types/pg": "^8.23.1",
+    "prisma": "^7.10.0",
+    "typescript": "^6.0.3"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
   }
 }

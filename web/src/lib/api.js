@@ -7,9 +7,13 @@
  * - Authentication is a server-issued HttpOnly session cookie. JavaScript
  *   never sees, stores or forwards a token; the browser attaches the cookie
  *   itself because the request is same-origin.
- * - Endpoint paths follow docs/alphablox-migration-map.md ("Replacement API
- *   map"). Most of them are not implemented by api/ yet and will return
- *   404 until their phase lands; pages must handle ApiError gracefully.
+ * - CSRF: state-changing requests (POST/PUT/PATCH/DELETE) carry an
+ *   X-CSRF-Token header. The token comes from GET /api/auth/csrf and is kept
+ *   in memory only (never in storage). If the API reports CSRF_INVALID the
+ *   token is refreshed once and the request retried.
+ * - Endpoint paths follow docs/alphablox-migration-map.md. Endpoints for
+ *   later phases (messages, groups, forum, economy) return 404 until then;
+ *   pages must handle ApiError gracefully.
  */
 
 const CLIENT_HEADER = 'X-Revival-Client';
@@ -49,10 +53,41 @@ function withQuery(path, query) {
 /** Encode a single dynamic path segment (ids, usernames). */
 export const seg = (value) => encodeURIComponent(String(value));
 
-async function request(method, path, { body, query, signal } = {}) {
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+let csrfToken = null;
+let csrfPromise = null;
+
+async function getCsrfToken(forceRefresh = false) {
+  if (forceRefresh) csrfToken = null;
+  if (csrfToken) return csrfToken;
+  csrfPromise ??= fetch('/api/auth/csrf', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+    .then((res) => (res.ok ? res.json() : Promise.reject(new ApiError('Unable to reach the server. Please try again.', { code: 'NETWORK_ERROR' }))))
+    .then((data) => {
+      csrfToken = data.csrfToken;
+      return csrfToken;
+    })
+    .finally(() => {
+      csrfPromise = null;
+    });
+  return csrfPromise;
+}
+
+async function request(method, path, opts = {}, isRetry = false) {
+  try {
+    return await send(method, path, opts, isRetry);
+  } catch (err) {
+    if (!isRetry && err instanceof ApiError && err.code === 'CSRF_INVALID') {
+      return send(method, path, opts, true);
+    }
+    throw err;
+  }
+}
+
+async function send(method, path, { body, query, signal } = {}, refreshCsrf = false) {
   assertApiPath(path);
 
   const headers = { Accept: 'application/json', [CLIENT_HEADER]: 'web' };
+  if (UNSAFE_METHODS.has(method)) headers['X-CSRF-Token'] = await getCsrfToken(refreshCsrf);
   const init = {
     method,
     headers,
@@ -126,35 +161,47 @@ export const authApi = {
   me: (opts) => api.get('/api/auth/me', opts),
   login: ({ username, password }) => api.post('/api/auth/login', { username, password }),
   logout: () => api.post('/api/auth/logout', {}),
-  register: ({ username, email, password }) => api.post('/api/auth/register', { username, email, password }),
+  register: ({ username, password }) => api.post('/api/auth/register', { username, password }),
+  // Later phase (email verification / password recovery are not implemented yet):
   verifyEmail: (token) => api.post('/api/auth/verify-email', { token }),
   resendVerification: (email) => api.post('/api/auth/verify-email/resend', { email }),
   forgotPassword: (email) => api.post('/api/auth/password/forgot', { email }),
   resetPassword: ({ token, newPassword }) => api.post('/api/auth/password/reset', { token, newPassword }),
-  changePassword: ({ currentPassword, newPassword }) =>
-    api.post('/api/auth/password/change', { currentPassword, newPassword }),
 };
 
 export const usersApi = {
-  list: ({ query, page, limit } = {}) => api.get('/api/users', { query: { query, page, limit } }),
+  /** { users, page, limit, total, totalPages } */
+  search: ({ search, page, limit } = {}) => api.get('/api/users', { query: { search, page, limit } }),
+  /** { user, stats: { friendCount, followerCount, followingCount }, relationship } */
   get: (id) => api.get(`/api/users/${seg(id)}`),
+  /** patch: { displayName?, description?, theme? } */
   updateMe: (patch) => api.patch('/api/users/me', patch),
   mySettings: () => api.get('/api/users/me/settings'),
-  friends: (id) => api.get(`/api/users/${seg(id)}/friends`),
+  friends: (id, { page, limit } = {}) => api.get(`/api/users/${seg(id)}/friends`, { query: { page, limit } }),
+  followers: (id, { page, limit } = {}) => api.get(`/api/users/${seg(id)}/followers`, { query: { page, limit } }),
+  following: (id, { page, limit } = {}) => api.get(`/api/users/${seg(id)}/following`, { query: { page, limit } }),
+  /** Incoming pending requests: { requests: [{ user, createdAt }] } */
   myFriendRequests: () => api.get('/api/users/me/friend-requests'),
-  sendFriendRequest: (id) => api.post(`/api/users/${seg(id)}/friend-request`, {}),
-  unfriend: (id) => api.delete(`/api/users/${seg(id)}/friend`),
   follow: (id) => api.post(`/api/users/${seg(id)}/follow`, {}),
   unfollow: (id) => api.delete(`/api/users/${seg(id)}/follow`),
-  followers: (id) => api.get(`/api/users/${seg(id)}/followers`),
-  following: (id) => api.get(`/api/users/${seg(id)}/following`),
+  // Later phase:
   myGroups: () => api.get('/api/users/me/groups'),
 };
 
-export const friendRequestsApi = {
-  accept: (requestId) => api.post(`/api/friend-requests/${seg(requestId)}/accept`, {}),
-  decline: (requestId) => api.post(`/api/friend-requests/${seg(requestId)}/decline`, {}),
+/** One explicit function per friend action (no URL built from an action name). */
+export const friendsApi = {
+  sendRequest: (userId) => api.post(`/api/friends/${seg(userId)}/request`, {}),
+  /** Accept the request that `userId` sent me. */
+  accept: (userId) => api.post(`/api/friends/${seg(userId)}/accept`, {}),
+  /** Unfriend, cancel my pending request, or decline theirs. */
+  remove: (userId) => api.delete(`/api/friends/${seg(userId)}`),
 };
+
+/**
+ * Features whose backend does not exist yet. Shared UI (the navbar) checks
+ * these so it does not poll endpoints that would only return 404.
+ */
+export const FEATURES = { messages: false, economy: false, groups: false, forum: false };
 
 export const economyApi = {
   balance: () => api.get('/api/economy/balance'),
@@ -194,7 +241,8 @@ export const reportsApi = {
 };
 
 export const adminApi = {
-  users: ({ query, page } = {}) => api.get('/api/admin/users', { query: { query, page } }),
+  users: ({ search, page } = {}) => api.get('/api/admin/users', { query: { search, page } }),
+  // Later phase (admin actions are not implemented by the API yet):
   ban: (userId, { reason, expiresAt }) => api.post(`/api/admin/users/${seg(userId)}/ban`, { reason, expiresAt }),
   unban: (userId) => api.delete(`/api/admin/users/${seg(userId)}/ban`),
   setRole: (userId, role) => api.put(`/api/admin/users/${seg(userId)}/role`, { role }),

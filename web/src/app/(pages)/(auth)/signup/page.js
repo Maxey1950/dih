@@ -2,16 +2,19 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-import { authApi, errorMessage } from '../../../../lib/api';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { errorMessage } from '../../../../lib/api';
 import RequireAuth from '../../../../components/auth/RequireAuth';
 import { siteConfig } from '../../../../../config/site';
 
 function SignupPage() {
+  const router = useRouter();
+  const { register } = useAuth();
 
   const [formData, setFormData] = useState({
     username: '',
-    email: '',
     password: '',
     confirmPassword: ''
   });
@@ -34,16 +37,13 @@ function SignupPage() {
 
     // Never log formData: it contains the password.
     try {
-      await authApi.register({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-      });
-      setSuccess('Registration successful! Please check your email to verify your account.');
-      setFormData({ username: '', email: '', password: '', confirmPassword: '' });
+      await register({ username: formData.username, password: formData.password });
+      setFormData({ username: '', password: '', confirmPassword: '' });
+      setSuccess('Account created! Redirecting...');
+      router.replace('/home');
     } catch (err) {
       setFormData((prev) => ({ ...prev, password: '', confirmPassword: '' }));
-      setError(err?.status === 404 ? 'Registration is not available yet. The new account system is still being built.' : errorMessage(err, 'Registration failed'));
+      setError(errorMessage(err, 'Registration failed'));
     } finally {
       setIsLoading(false);
     }
@@ -56,7 +56,7 @@ function SignupPage() {
         <div className="col-12 col-sm-10 col-md-12 col-lg-10 col-xl-8 mb-4">
           <div className="alert alert-dismissible alert-info">
             <h4 className="alert-heading">Important Security Information</h4>
-            <p className="mb-0">We are rebuilding the account system from scratch. Accounts from the previous site are not carried over, and registration opens once the new system is ready.</p>
+            <p className="mb-0">Accounts from the previous site are not carried over. We never ask for your email, and your password is stored only as a secure one-way hash.</p>
           </div>
         </div>
 
@@ -132,21 +132,13 @@ function SignupPage() {
                 )}          
                 <form onSubmit={handleSubmit}>
                   <div className="row">
-                    <div className="col-md-6 mb-3">
+                    <div className="col-md-12 mb-3">
                       <label htmlFor="username" className="form-label">Username</label>
                       <div className="input-group">
                         <span className="input-group-text"><i className="bi bi-person"></i></span>
-                        <input placeholder='Choose a username' type="text" className="form-control" id="username" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required />
+                        <input placeholder='Choose a username' type="text" className="form-control" id="username" autoComplete="username" maxLength={20} value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required />
                       </div>
-                      <div className="form-text">3-20 characters, letters and numbers only</div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <label htmlFor="email" className="form-label">Email Address</label>
-                      <div className="input-group">
-                        <span className="input-group-text"><i className="bi bi-envelope"></i></span>
-                        <input placeholder='Enter your email' type="email" className="form-control" id="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
-                      </div>
-                      <div className="form-text">Ensure you use a valid email address for verification</div>
+                      <div className="form-text">3-20 characters: letters, numbers and at most one underscore</div>
                     </div>
                   </div>
                   <div className="row">
@@ -154,7 +146,7 @@ function SignupPage() {
                       <label htmlFor="password" className="form-label">Password</label>
                       <div className="input-group">
                         <span className="input-group-text"><i className="bi bi-lock"></i></span>
-                        <input placeholder='******' type="password" className="form-control" id="password" autoComplete="new-password" minLength={8} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
+                        <input placeholder='******' type="password" className="form-control" id="password" autoComplete="new-password" minLength={8} maxLength={128} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                       </div>
                       <div className="form-text">Minimum 8 characters</div>
                     </div>

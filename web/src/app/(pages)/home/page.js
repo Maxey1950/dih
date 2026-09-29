@@ -35,8 +35,8 @@ function HomePage() {
       // Profile and friends endpoints arrive in a later phase; show empty state until then.
       const [profile, friendList] = await Promise.allSettled([usersApi.get(userId), usersApi.friends(userId)]);
       if (cancelled) return;
-      if (profile.status === 'fulfilled') setBlurb(profile.value?.user?.blurb ?? '');
-      if (friendList.status === 'fulfilled') setFriends(friendList.value?.friends ?? []);
+      if (profile.status === 'fulfilled') setBlurb(profile.value?.user?.description ?? '');
+      if (friendList.status === 'fulfilled') setFriends(friendList.value?.users ?? []);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -54,7 +54,7 @@ function HomePage() {
         setError('Blurb must be less than 500 characters');
         return;
       }
-      await usersApi.updateMe({ blurb: tempBlurb });
+      await usersApi.updateMe({ description: tempBlurb });
       setBlurb(tempBlurb);
       setIsEditingBlurb(false);
       setError('');
@@ -133,7 +133,7 @@ function HomePage() {
               <div className="d-flex justify-content-center">
                 <div className="card w-100 border-0 shadow-sm">
                   <div className="card-header bg-primary bg-gradient text-white">
-                    <h5 className="mb-0">Welcome, {username}</h5>
+                    <h5 className="mb-0">Welcome, {user?.displayName || username}</h5>
                   </div>
                   <div className="card-body text-center">
                     <UserAvatar

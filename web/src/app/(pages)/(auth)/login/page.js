@@ -70,8 +70,6 @@ function LoginPage() {
             <p className="mb-0">Please verify your email to continue.</p>
           </div>
         );
-      } else if (err instanceof ApiError && err.status === 404) {
-        setError('Login is not available yet. The new account system is still being built.');
       } else {
         setError(err instanceof ApiError ? err.message : 'Login failed. Please try again.');
       }

@@ -12,10 +12,10 @@ AlphaBlox 2016-style frontend (web/)
 
 | Directory | Status (Phase 1) |
 |---|---|
-| `web/` | AlphaBlox frontend migrated to Next 16 / React 19. It talks only to same-origin `/api/*` and assumes session-cookie auth. |
-| `api/` | Fastify + TypeScript. Serves `GET /health` and `GET /api/auth/me` (always anonymous for now). |
-| `shared/` | Zod schemas and TypeScript types for the public API contract (`User`, `Game`, `AuthMeResponse`, `ApiError`). |
-| `database/` | Prisma 7 schema and initial migration for `User`, `Session` and `Game` (PostgreSQL). |
+| `web/` | AlphaBlox frontend (Next 16 / React 19). Register, login, logout, profile, people, friends, followers and settings work against the API. |
+| `api/` | Fastify + TypeScript. Server-side sessions (HttpOnly cookie, hashed tokens), argon2id, CSRF, rate limits, users and the social graph. See [`docs/phase-2-accounts.md`](docs/phase-2-accounts.md). |
+| `shared/` | Zod schemas and TypeScript types for the API contract and the central username/password rules. |
+| `database/` | Prisma 7 schema and migrations for users, sessions, friendships, follows and games (PostgreSQL). |
 | `launcher/` | README only: the planned `ourrevival://join?ticket=…` flow. |
 | `rfd/` | README only: RFD v347 integration notes. Nothing is downloaded or executed. |
 | `infra/` | `docker-compose.yml` for local PostgreSQL. |
@@ -36,16 +36,13 @@ npm install --prefix web       # frontend
 npm run build                  # builds shared + api
 npm test                       # API tests
 
+docker compose -f infra/docker-compose.yml up -d        # PostgreSQL
+export DATABASE_URL=postgresql://revival:revival@127.0.0.1:5432/revival
+npm run migrate:deploy -w @revival/database
+
+export COOKIE_SECRET=$(openssl rand -base64 48)
 npm run dev:api                # API on http://127.0.0.1:4000
 npm run dev:web                # web on http://localhost:3000 (proxies /api → API_ORIGIN)
-```
-
-Database (optional in Phase 1; the API does not use it yet):
-
-```bash
-docker compose -f infra/docker-compose.yml up -d
-cp database/.env.example database/.env
-npm run migrate:deploy -w @revival/database
 ```
 
 To opt out of Next.js telemetry: `npx next telemetry disable` (or set `NEXT_TELEMETRY_DISABLED=1`).

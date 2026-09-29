@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { economyApi, messagesApi, usersApi } from '../lib/api';
+import { FEATURES, economyApi, messagesApi, usersApi } from '../lib/api';
 import { siteConfig } from '../../config/site';
 import UserSubmenu from '../components/UserSubmenu';
 import UserAvatar from '../components/UserAvatar';
@@ -27,26 +27,31 @@ export default function Navbar() {
     const [nextAward, setNextAward] = useState(null);
     const [now, setNow] = useState(() => Date.now());
 
-    // Badge counts and balance. These endpoints arrive in later phases; until
-    // then failures are ignored and the badges simply stay at zero.
+    // Badge counts and balance. Messages and economy arrive in later phases
+    // (see FEATURES in lib/api.js); until then those badges stay at zero.
+    const userId = user?.id;
     useEffect(() => {
-        if (!user) return;
+        if (!userId) return;
         let cancelled = false;
         usersApi.myFriendRequests()
             .then((d) => !cancelled && setFriendRequests(d?.requests?.length ?? 0))
             .catch(() => {});
-        messagesApi.unreadCount()
-            .then((d) => !cancelled && setMessages(d?.count ?? 0))
-            .catch(() => {});
-        economyApi.balance()
-            .then((d) => {
-                if (cancelled) return;
-                setCurrency(d?.currency ?? 0);
-                setNextAward(d?.nextAward ?? null);
-            })
-            .catch(() => {});
+        if (FEATURES.messages) {
+            messagesApi.unreadCount()
+                .then((d) => !cancelled && setMessages(d?.count ?? 0))
+                .catch(() => {});
+        }
+        if (FEATURES.economy) {
+            economyApi.balance()
+                .then((d) => {
+                    if (cancelled) return;
+                    setCurrency(d?.currency ?? 0);
+                    setNextAward(d?.nextAward ?? null);
+                })
+                .catch(() => {});
+        }
         return () => { cancelled = true; };
-    }, [user, pathname]);
+    }, [userId, pathname]);
 
     useEffect(() => {
         if (!nextAward) return;

@@ -1,16 +1,21 @@
-// Phase 1 schema: accounts, sessions and games only.
+// Accounts, sessions, social graph and games.
 // Catalog, economy, groups, forum and messages come in later phases.
 // Nothing here is derived from, or migrated from, the AlphaBlox MongoDB models.
+//
+// Constraints Prisma cannot express (CHECKs) are added by hand in the
+// migration SQL; see prisma/migrations/*_accounts_sessions_social.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "esm"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+/// Keep roles simple. Permissions are derived from the role only, never from user ids.
 enum UserRole {
   user
   moderator
@@ -22,54 +27,106 @@ enum Theme {
   dark
 }
 
+enum FriendshipStatus {
+  pending
+  accepted
+}
+
 model User {
   id                 String    @id @default(uuid()) @db.Uuid
-  /// Display form, e.g. "Builderman".
+  /// Display form of the login name, e.g. "Builderman". Rules: shared/src/validation.ts.
   username           String    @db.VarChar(20)
-  /// Lower-cased username used for uniqueness and lookups.
+  /// Lower-cased username; unique, used for login and duplicate checks.
   usernameNormalized String    @unique @map("username_normalized") @db.VarChar(20)
+  /// Optional friendly name shown on the profile. Defaults to the username in the API.
+  displayName        String?   @map("display_name") @db.VarChar(32)
+  /// Profile "blurb".
+  description        String    @default("") @db.VarChar(1000)
+  /// Unused: registration does not collect email (no verification/recovery yet).
   email              String?   @unique @db.VarChar(254)
   emailVerifiedAt    DateTime? @map("email_verified_at")
-  /// argon2id hash. Never selected into API responses.
+  /// argon2id PHC string. Never selected into API responses.
   passwordHash       String    @map("password_hash")
   role               UserRole  @default(user)
-  blurb              String    @default("") @db.VarChar(1000)
   theme              Theme     @default(light)
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
-  lastSeenAt         DateTime? @map("last_seen_at")
+  /// Updated at most every PRESENCE_WRITE_INTERVAL (see api/src/auth/session.ts).
+  lastOnlineAt       DateTime? @map("last_online_at")
   bannedUntil        DateTime? @map("banned_until")
   banReason          String?   @map("ban_reason") @db.VarChar(500)
 
-  sessions Session[]
-  games    Game[]
+  sessions               Session[]
+  games                  Game[]
+  friendshipsAsLow       Friendship[] @relation("FriendshipLow")
+  friendshipsAsHigh      Friendship[] @relation("FriendshipHigh")
+  friendRequestsSent     Friendship[] @relation("FriendshipRequester")
+  following              Follow[]     @relation("Follower")
+  followers              Follow[]     @relation("Following")
 
+  @@index([lastOnlineAt])
   @@map("users")
 }
 
-/// Server-side session. The browser holds only a random token in a
-/// Secure/HttpOnly/SameSite cookie; the database stores its SHA-256 hash,
-/// so a database leak does not leak usable session tokens.
+/// Server-side session. The browser holds only a random 256-bit token in an
+/// HttpOnly cookie; the database stores its SHA-256 hash, so a database leak
+/// does not leak usable session tokens.
 model Session {
-  id         String    @id @default(uuid()) @db.Uuid
-  tokenHash  String    @unique @map("token_hash") @db.Char(64)
-  userId     String    @map("user_id") @db.Uuid
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime  @default(now()) @map("created_at")
-  lastUsedAt DateTime  @default(now()) @map("last_used_at")
-  expiresAt  DateTime  @map("expires_at")
-  revokedAt  DateTime? @map("revoked_at")
-  /// Coarse metadata for the "active sessions" page; optional.
-  userAgent  String?   @map("user_agent") @db.VarChar(512)
-  ipAddress  String?   @map("ip_address") @db.VarChar(45)
+  id         String   @id @default(uuid()) @db.Uuid
+  tokenHash  String   @unique @map("token_hash") @db.Char(64)
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+  expiresAt  DateTime @map("expires_at")
+  /// Truncated User-Agent, for a future "active sessions" page. No IP is stored.
+  userAgent  String?  @map("user_agent") @db.VarChar(256)
 
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
 }
 
+/// One row per unordered pair of users. userLowId < userHighId is enforced by
+/// a CHECK constraint, so (A,B) and (B,A) cannot both exist and nobody can
+/// befriend themselves.
+model Friendship {
+  id          String           @id @default(uuid()) @db.Uuid
+  userLowId   String           @map("user_low_id") @db.Uuid
+  userHighId  String           @map("user_high_id") @db.Uuid
+  /// Who sent the request; must be one of the pair (CHECK constraint).
+  requesterId String           @map("requester_id") @db.Uuid
+  status      FriendshipStatus @default(pending)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  acceptedAt  DateTime?        @map("accepted_at")
+
+  userLow   User @relation("FriendshipLow", fields: [userLowId], references: [id], onDelete: Cascade)
+  userHigh  User @relation("FriendshipHigh", fields: [userHighId], references: [id], onDelete: Cascade)
+  requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@unique([userLowId, userHighId])
+  @@index([userHighId])
+  @@index([requesterId])
+  @@map("friendships")
+}
+
+/// Directed follow edge. Composite primary key prevents duplicates; a CHECK
+/// constraint prevents following yourself.
+model Follow {
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
 /// A game/place listing. Live player counts come from the game-server
-/// registry (Phase 2), not from this table.
+/// registry (later phase), not from this table.
 model Game {
   id           String   @id @default(uuid()) @db.Uuid
   name         String   @db.VarChar(100)

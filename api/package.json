@@ -9,11 +9,19 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test --test-concurrency=1 test/*.test.ts",
+    "sessions:cleanup": "node dist/cli/sessions-cleanup.js",
+    "user:set-role": "node dist/cli/set-role.js"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/csrf-protection": "^8.0.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@revival/database": "^0.1.0",
     "@revival/shared": "0.1.0",
+    "argon2": "^0.45.1",
     "fastify": "^5.12.5",
+    "fastify-plugin": "^5.1.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../../hooks/useTheme';
-import { authApi, usersApi, errorMessage } from '../../../lib/api';
+import { usersApi, errorMessage } from '../../../lib/api';
+import { useAuth } from '../../../contexts/AuthContext';
 import RequireAuth from '../../../components/auth/RequireAuth';
 
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const { refreshUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
@@ -15,9 +16,8 @@ function SettingsPage() {
   const [success, setSuccess] = useState(null);
   const [userData, setUserData] = useState({
     username: '',
-    email: '',
-    gender: '',
-    blurb: ''
+    displayName: '',
+    description: ''
   });
 
   useEffect(() => {
@@ -30,9 +30,8 @@ function SettingsPage() {
       const settings = data?.settings ?? {};
       setUserData({
         username: settings.username || '',
-        email: settings.email || '',
-        gender: settings.gender || '',
-        blurb: settings.blurb || ''
+        displayName: settings.displayName || '',
+        description: settings.description || ''
       });
     } catch (err) {
       setError(errorMessage(err, 'Failed to load user data'));
@@ -54,28 +53,12 @@ function SettingsPage() {
     try {
       setLoading(true);
       setError(null);
-      await usersApi.updateMe({ blurb: userData.blurb, gender: userData.gender });
+      const displayName = userData.displayName.trim();
+      await usersApi.updateMe({ displayName: displayName || null, description: userData.description });
+      await refreshUser();
       setSuccess('Profile updated successfully');
     } catch (err) {
       setError(errorMessage(err, 'Failed to update profile'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePasswordResetRequest = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      await authApi.forgotPassword(userData.email);
-      setResetEmailSent(true);
-      setSuccess('Password reset email sent. Please check your inbox.');
-      setTimeout(() => {
-        setSuccess(null);
-        setResetEmailSent(false);
-      }, 5000);
-    } catch (err) {
-      setError(errorMessage(err, 'Failed to send password reset email'));
     } finally {
       setLoading(false);
     }
@@ -132,21 +115,13 @@ function SettingsPage() {
                         <input type="text" className="form-control" value={userData.username} disabled readOnly />
                         </div>
                         <div className="mb-3">
-                        <label className="form-label">Email</label>
-                        <input type="email" className="form-control" value={userData.email} disabled readOnly />
+                        <label className="form-label" htmlFor="displayName">Display Name</label>
+                        <input id="displayName" type="text" className="form-control" maxLength={32} placeholder={userData.username} value={userData.displayName} onChange={(e) => setUserData({...userData, displayName: e.target.value})} />
+                        <div className="form-text">Shown on your profile. Leave empty to use your username.</div>
                         </div>
                         <div className="mb-3">
-                        <label className="form-label">Gender</label>
-                        <select className="form-select" value={userData.gender} onChange={(e) => setUserData({...userData, gender: e.target.value})}>
-                            <option value="">Select gender...</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="other">Other</option>
-                        </select>
-                        </div>
-                        <div className="mb-3">
-                        <label className="form-label">Bio</label>
-                        <textarea className="form-control" rows="3" maxLength="100" value={userData.blurb} onChange={(e) => setUserData({...userData, blurb: e.target.value})}></textarea>
+                        <label className="form-label" htmlFor="description">Bio</label>
+                        <textarea id="description" className="form-control" rows="3" maxLength={1000} value={userData.description} onChange={(e) => setUserData({...userData, description: e.target.value})}></textarea>
                         </div>
                         <button type="submit" className="btn btn-primary" disabled={loading}>
                         {loading ? 'Saving...' : 'Save Changes'}
@@ -180,16 +155,12 @@ function SettingsPage() {
               <div className="card-body">
                 <h4 className="card-title mb-4">Security Settings</h4>
                 <div className="mb-4">
-                  <h5>Password Reset</h5>
+                  <h5>Password</h5>
                   <p className="text-muted">
-                    Need to change your password? Click below to receive a password reset link via email.
+                    Changing your password will be available in a future update.
                   </p>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={handlePasswordResetRequest}
-                    disabled={loading || resetEmailSent}
-                  >
-                    {loading ? 'Sending...' : resetEmailSent ? 'Email Sent!' : 'Send Reset Link'}
+                  <button className="btn btn-primary" disabled>
+                    Change Password
                   </button>
                 </div>
               </div>

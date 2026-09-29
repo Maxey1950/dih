@@ -20,7 +20,7 @@ const BAN_DURATIONS_MS = {
  * audit log entry. Admin actions are not implemented by the API in Phase 1.
  *
  * Expected GET /api/admin/users?query=&page= response:
- * { users: [{ id, username, email, role, isBanned, banReason, banExpiresAt, isOnline, createdAt, lastSeenAt }],
+ * { users: [{ id, username, displayName, description, role, isBanned, isOnline, createdAt, lastOnlineAt }],
  *   total, totalPages }
  */
 function AdminDashboardPage() {
@@ -44,7 +44,7 @@ function AdminDashboardPage() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const data = await adminApi.users({ query, page: currentPage });
+      const data = await adminApi.users({ search: query || undefined, page: currentPage });
       setUsers(data?.users ?? []);
       setTotal(data?.total ?? 0);
       setTotalPages(Math.max(1, data?.totalPages ?? 1));
@@ -250,7 +250,7 @@ function AdminDashboardPage() {
                   <input 
                     type="text" 
                     className="form-control border-0 py-2" 
-                    placeholder="Search users by username, email or ID..." 
+                    placeholder="Search users by username..." 
                     onChange={(e) => {
                       setSearchTerm(e.target.value); 
                       handleSearch(e.target.value);

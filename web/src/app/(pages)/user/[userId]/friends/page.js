@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../../../contexts/AuthContext';
-import { usersApi, friendRequestsApi, errorMessage } from '../../../../../lib/api';
+import { usersApi, friendsApi, errorMessage } from '../../../../../lib/api';
 import UserAvatar from '../../../../../components/UserAvatar';
 
 export default function FriendsPage() {
@@ -40,9 +40,9 @@ export default function FriendsPage() {
           isOwnProfile ? usersApi.myFriendRequests() : Promise.resolve({ requests: [] }),
         ]);
         if (cancelled) return;
-        setFriends(friendsRes.status === 'fulfilled' ? friendsRes.value?.friends ?? [] : []);
-        setFollowers(followersRes.status === 'fulfilled' ? followersRes.value?.followers ?? [] : []);
-        setFollowing(followingRes.status === 'fulfilled' ? followingRes.value?.following ?? [] : []);
+        setFriends(friendsRes.status === 'fulfilled' ? friendsRes.value?.users ?? [] : []);
+        setFollowers(followersRes.status === 'fulfilled' ? followersRes.value?.users ?? [] : []);
+        setFollowing(followingRes.status === 'fulfilled' ? followingRes.value?.users ?? [] : []);
         setFriendRequests(requestsRes.status === 'fulfilled' ? requestsRes.value?.requests ?? [] : []);
       } catch (err) {
         if (!cancelled) setError(errorMessage(err, 'Failed to fetch data'));
@@ -55,21 +55,22 @@ export default function FriendsPage() {
     return () => { cancelled = true; };
   }, [userId, isOwnProfile]);
 
-  const acceptRequest = async (requestId) => {
+  // Requests are identified by the requesting user's id.
+  const acceptRequest = async (requesterId) => {
     try {
-      await friendRequestsApi.accept(requestId);
-      setFriendRequests((prev) => prev.filter((req) => req.requestId !== requestId));
+      await friendsApi.accept(requesterId);
+      setFriendRequests((prev) => prev.filter((req) => req.user.id !== requesterId));
       const friendsRes = await usersApi.friends(userId);
-      setFriends(friendsRes?.friends ?? []);
+      setFriends(friendsRes?.users ?? []);
     } catch (err) {
       setError(errorMessage(err, 'Failed to accept friend request'));
     }
   };
 
-  const declineRequest = async (requestId) => {
+  const declineRequest = async (requesterId) => {
     try {
-      await friendRequestsApi.decline(requestId);
-      setFriendRequests((prev) => prev.filter((req) => req.requestId !== requestId));
+      await friendsApi.remove(requesterId);
+      setFriendRequests((prev) => prev.filter((req) => req.user.id !== requesterId));
     } catch (err) {
       setError(errorMessage(err, 'Failed to decline friend request'));
     }
@@ -103,11 +104,11 @@ export default function FriendsPage() {
           <div className="d-flex gap-2 justify-content-center">
             {type === 'request' ? (
               <>
-                <button className="btn btn-success btn-sm" onClick={() => acceptRequest(user.requestId)}>
+                <button className="btn btn-success btn-sm" onClick={() => acceptRequest(user.id)}>
                   <i className="bi bi-check-lg me-2"></i>
                   Accept
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => declineRequest(user.requestId)}>
+                <button className="btn btn-danger btn-sm" onClick={() => declineRequest(user.id)}>
                   <i className="bi bi-x-lg me-2"></i>
                   Reject
                 </button>
@@ -202,12 +203,7 @@ export default function FriendsPage() {
           <p className="text-body-secondary mt-2">No friend requests</p>
         </div>
       ) : (
-        <div className="row g-4">{friendRequests.map((request) => (<UserCard key={request.requestId} user={{ 
-          id: request.sender.id,
-          username: request.sender.username,
-          isOnline: request.sender.isOnline,
-          requestId: request.requestId 
-        }} type="request" />))}
+        <div className="row g-4">{friendRequests.map((request) => (<UserCard key={request.user.id} user={request.user} type="request" />))}
         </div>
       )}
     </>

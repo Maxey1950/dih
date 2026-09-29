@@ -9,14 +9,15 @@
     "database"
   ],
   "scripts": {
-    "build": "npm run build -w @revival/shared && npm run build -w @revival/api",
-    "test": "npm run build -w @revival/shared && npm test -w @revival/api",
-    "typecheck": "npm run build -w @revival/shared && npm run typecheck -w @revival/api",
+    "build": "npm run build -w @revival/shared && npm run build -w @revival/database && npm run build -w @revival/api",
+    "test": "npm run build -w @revival/shared && npm run build -w @revival/database && npm test -w @revival/api",
+    "typecheck": "npm run build -w @revival/shared && npm run build -w @revival/database && npm run typecheck -w @revival/api",
     "db:validate": "npm run validate -w @revival/database",
-    "dev:api": "npm run build -w @revival/shared && npm run dev -w @revival/api",
+    "dev:api": "npm run build -w @revival/shared && npm run build -w @revival/database && npm run dev -w @revival/api",
     "dev:web": "npm run dev --prefix web",
     "build:web": "npm run build --prefix web",
-    "audit:all": "npm audit && npm audit --prefix web"
+    "audit:all": "npm audit && npm audit --prefix web",
+    "sessions:cleanup": "npm run sessions:cleanup -w @revival/api"
   },
   "devDependencies": {
     "@types/node": "^22.19.0"

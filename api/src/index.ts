@@ -1,12 +1,15 @@
+import { createPrismaClient } from '@revival/database';
 import { loadConfig } from './config.js';
 import { buildServer } from './server.js';
 
 const config = loadConfig();
-const app = buildServer(config);
+const prisma = createPrismaClient(config.DATABASE_URL);
+const app = await buildServer({ config, prisma });
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
   await app.close();
+  await prisma.$disconnect();
   process.exit(0);
 };
 process.on('SIGINT', () => void shutdown('SIGINT'));

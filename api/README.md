@@ -1,24 +1,35 @@
-# api/ — backend (Fastify + TypeScript + Zod)
+# api/ — backend (Fastify + TypeScript + Zod + Prisma)
 
 ```bash
-npm run build -w @revival/shared   # once, or: npm run build (root)
-npm run dev -w @revival/api        # tsx watch, http://127.0.0.1:4000
-npm test -w @revival/api
+cp api/.env.example api/.env            # set DATABASE_URL and COOKIE_SECRET
+npm run build                            # shared + database (prisma generate) + api
+npm run dev -w @revival/api              # http://127.0.0.1:4000 (reads env from the shell)
+npm test                                 # needs PostgreSQL; see "Tests" below
+npm run sessions:cleanup                 # delete expired sessions (cron this in production)
+npm run user:set-role -w @revival/api -- <username> admin
 ```
 
-Phase 1 endpoints:
+Routes, the session/CSRF design, rate limits and presence are documented in
+[`docs/phase-2-accounts.md`](../docs/phase-2-accounts.md).
 
-| Method | Path | Response |
-|---|---|---|
-| GET | `/health` | `HealthResponse` |
-| GET | `/api/auth/me` | `AuthMeResponse`. Always `{ authenticated: false, user: null }` until sessions exist. `Cache-Control: no-store`. |
+Layout:
 
-All errors use the shared `ApiError` shape: `{ error: { code, message, details? } }`.
-The logger redacts `Authorization`, `Cookie` and `Set-Cookie`.
+- `src/auth/session.ts`: the only place a cookie becomes a user (`request.auth`)
+- `src/auth/guards.ts`: `optionalAuth`, `requireAuth`, `requireRole`, `requireAdmin`
+- `src/auth/password.ts`: argon2id hashing
+- `src/plugins/csrf.ts`: CSRF token plus Origin check for POST/PUT/PATCH/DELETE
+- `src/users/serialize.ts`: allow-list serializers (no hashes, emails or security fields)
+- `src/routes/*`: auth, users, social (friends/follows), admin (read-only)
 
-Configuration is read from the environment and validated with Zod
-(`src/config.ts`): `HOST`, `PORT`, `LOG_LEVEL`, `NODE_ENV`. See `.env.example`.
+## Tests
 
-No AlphaBlox backend code is used. The session design (opaque token in a
-Secure/HttpOnly/SameSite cookie, stored hashed in `sessions`) is documented in
-`src/routes/auth.ts` and `database/prisma/schema.prisma`.
+`node:test` via tsx, against a real PostgreSQL database (`TEST_DATABASE_URL`,
+default `postgresql://revival@127.0.0.1:55432/revival_test`). The database must
+have the migrations applied:
+
+```bash
+DATABASE_URL=$TEST_DATABASE_URL npm run migrate:deploy -w @revival/database
+TEST_DATABASE_URL=... npm test
+```
+
+Tests truncate all tables, so never point them at a real database.
