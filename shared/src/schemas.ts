@@ -60,28 +60,155 @@ export const AuthMeResponse = z.discriminatedUnion('authenticated', [
 ]);
 export type AuthMeResponse = z.infer<typeof AuthMeResponse>;
 
-export const GameCreator = z.object({
-  id: Id,
-  username: z.string(),
-});
+export const GameCreator = z
+  .object({ id: Id, username: z.string(), displayName: z.string() })
+  .strict();
 
-/** A game/place listing (GET /api/games, GET /api/games/:id). */
-export const Game = z.object({
-  id: Id,
-  name: z.string().min(1).max(100),
-  description: z.string().max(4000),
-  creator: GameCreator,
-  thumbnailUrl: z.string(),
-  playerCount: z.number().int().nonnegative(),
-  maxPlayers: z.number().int().positive(),
-  genre: z.string().optional(),
-  visits: z.number().int().nonnegative().optional(),
-  upVotes: z.number().int().nonnegative().optional(),
-  downVotes: z.number().int().nonnegative().optional(),
-  createdAt: z.iso.datetime().optional(),
-  updatedAt: z.iso.datetime().optional(),
-});
+/** Card data for game lists (GET /api/games, GET /api/users/:id/games). */
+export const GameSummary = z
+  .object({
+    id: Id,
+    name: z.string(),
+    creator: GameCreator,
+    thumbnailUrl: z.string(),
+    /** Sum over ONLINE/DRAINING, non-stale servers. Never stored on the game. */
+    playerCount: z.number().int().nonnegative(),
+    maxPlayers: z.number().int().positive(),
+    genre: z.string().nullable(),
+    visits: z.number().int().nonnegative(),
+    upVotes: z.number().int().nonnegative(),
+    downVotes: z.number().int().nonnegative(),
+    isPublic: z.boolean(),
+    isFeatured: z.boolean(),
+    updatedAt: z.iso.datetime(),
+  })
+  .strict();
+export type GameSummary = z.infer<typeof GameSummary>;
+
+/** Full game detail (GET /api/games/:id). */
+export const Game = GameSummary.extend({
+  description: z.string(),
+  placeId: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+  /** Viewer-specific: true for the creator and admins. */
+  canEdit: z.boolean(),
+}).strict();
 export type Game = z.infer<typeof Game>;
+
+export const GameSort = z.enum(['featured', 'updated', 'players']);
+export type GameSort = z.infer<typeof GameSort>;
+
+export const GameListResponse = z.object({
+  games: z.array(GameSummary),
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().positive(),
+});
+export type GameListResponse = z.infer<typeof GameListResponse>;
+
+export const GameResponse = z.object({ game: Game });
+
+export const GAME_GENRES = ['Town and City', 'Fantasy', 'Sci-Fi', 'Adventure', 'War', 'Sports', 'Funny'] as const;
+export const GameGenre = z.enum(GAME_GENRES);
+
+// eslint-disable-next-line no-control-regex
+const GAME_TEXT_CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g;
+const GameName = z
+  .string()
+  .transform((v) => v.replace(GAME_TEXT_CONTROL, '').replace(/\s+/g, ' ').trim())
+  .pipe(z.string().min(1, 'Game name is required').max(50, 'Game name must be at most 50 characters'));
+const GameDescription = z
+  .string()
+  .max(1000, 'Description must be at most 1000 characters')
+  .transform((v) => v.replace(GAME_TEXT_CONTROL, '').trim());
+const MaxPlayers = z.number().int('Max players must be a whole number').min(1).max(100, 'Max players must be at most 100');
+
+/**
+ * POST /api/games. Strict: creatorId, placeId, visits, votes, thumbnails and
+ * featured flags cannot be supplied; the creator always comes from the session.
+ */
+export const CreateGameRequest = z
+  .object({
+    name: GameName,
+    description: GameDescription.default(''),
+    maxPlayers: MaxPlayers.default(12),
+    isPublic: z.boolean().default(false),
+    genre: GameGenre.nullable().optional(),
+  })
+  .strict();
+export type CreateGameRequest = z.infer<typeof CreateGameRequest>;
+
+/** PATCH /api/games/:id. `isFeatured` is accepted only from admins. */
+export const UpdateGameRequest = z
+  .object({
+    name: GameName.optional(),
+    description: GameDescription.optional(),
+    maxPlayers: MaxPlayers.optional(),
+    isPublic: z.boolean().optional(),
+    genre: GameGenre.nullable().optional(),
+    isFeatured: z.boolean().optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, 'Nothing to update');
+export type UpdateGameRequest = z.infer<typeof UpdateGameRequest>;
+
+/** Public view of a live server: no host, port, credential or internal state. */
+export const GameServerPublic = z
+  .object({
+    id: Id,
+    playerCount: z.number().int().nonnegative(),
+    maxPlayers: z.number().int().positive(),
+    status: z.enum(['online', 'draining']),
+  })
+  .strict();
+export type GameServerPublic = z.infer<typeof GameServerPublic>;
+
+export const GameServerListResponse = z.object({ servers: z.array(GameServerPublic) });
+
+/** Admin view (GET /api/admin/servers). Still no credential hash or address. */
+export const AdminGameServer = z
+  .object({
+    id: Id,
+    game: z.object({ id: Id, name: z.string(), placeId: z.number().int() }).strict(),
+    status: z.enum(['starting', 'online', 'draining', 'offline']),
+    isStale: z.boolean(),
+    playerCount: z.number().int().nonnegative(),
+    maxPlayers: z.number().int().positive(),
+    startedAt: z.iso.datetime().nullable(),
+    lastHeartbeatAt: z.iso.datetime().nullable(),
+  })
+  .strict();
+export const AdminGameServerListResponse = z.object({ servers: z.array(AdminGameServer) });
+
+/**
+ * INTERNAL: POST /api/internal/servers/:id/heartbeat (game server -> API,
+ * authenticated with the server credential, never a user session).
+ */
+export const ServerHeartbeatRequest = z
+  .object({
+    playerCount: z.number().int().min(0).max(200),
+    maxPlayers: z.number().int().min(1).max(200),
+    /** Optional: a server reports 'starting' while it loads, then 'online'. */
+    status: z.enum(['starting', 'online']).optional(),
+  })
+  .strict()
+  .refine((v) => v.playerCount <= v.maxPlayers, {
+    message: 'playerCount cannot exceed maxPlayers',
+    path: ['playerCount'],
+  });
+export type ServerHeartbeatRequest = z.infer<typeof ServerHeartbeatRequest>;
+
+export const ServerStateResponse = z.object({
+  server: z.object({
+    id: Id,
+    status: z.enum(['starting', 'online', 'draining', 'offline']),
+    playerCount: z.number().int().nonnegative(),
+    maxPlayers: z.number().int().positive(),
+    /** Seconds; send the next heartbeat within this interval. */
+    heartbeatIntervalSeconds: z.number().int().positive(),
+  }),
+});
 
 export const ApiErrorCode = z.enum([
   'BAD_REQUEST',

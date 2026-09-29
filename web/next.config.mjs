@@ -44,7 +44,10 @@ const nextConfig = {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
   async rewrites() {
-    return [{ source: '/api/:path*', destination: `${apiOrigin}/api/:path*` }];
+    // Proxy everything under /api EXCEPT /api/internal/*: the game-server API is
+    // machine-to-machine and must be reached directly on the internal network,
+    // never through the public website.
+    return [{ source: '/api/:path((?!internal(?:/|$)).*)', destination: `${apiOrigin}/api/:path` }];
   },
 };
 

@@ -30,6 +30,8 @@ const EnvSchema = z
     RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
     RATE_LIMIT_AUTH_WINDOW: z.string().default('1 minute'),
     RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().min(1).default(600),
+    /** Games a single IP may create per hour. */
+    RATE_LIMIT_GAME_CREATE_MAX: z.coerce.number().int().min(1).default(20),
   })
   .transform((env) => ({
     ...env,

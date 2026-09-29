@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import RequireAuth from "../../../components/auth/RequireAuth";
 import UserAvatar from "../../../components/UserAvatar";
+import GameServersCard from "../../../components/admin/GameServersCard";
 import { adminApi, errorMessage } from "../../../lib/api";
 import { debounce } from "../../../lib/utils/debounce";
 
@@ -407,6 +408,7 @@ function AdminDashboardPage() {
             </div>
           </div>
         </div>
+        <GameServersCard />
       </div>
 
       {/* User Details Modal */}

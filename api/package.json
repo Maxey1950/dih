@@ -11,7 +11,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test --test-concurrency=1 test/*.test.ts",
     "sessions:cleanup": "node dist/cli/sessions-cleanup.js",
-    "user:set-role": "node dist/cli/set-role.js"
+    "user:set-role": "node dist/cli/set-role.js",
+    "server:provision": "node dist/cli/server-provision.js",
+    "server:revoke": "node dist/cli/server-revoke.js",
+    "servers:list": "node dist/cli/servers-list.js",
+    "servers:reap": "node dist/cli/servers-reap.js",
+    "seed:dev": "node dist/cli/dev-seed.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

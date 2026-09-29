@@ -42,9 +42,11 @@ RFD v347 game server      → validates/redeems ticket with api before admitting
    for a different server.
 2. **Identity comes from the API**, never from a client-supplied username or
    user id.
-3. **Server registry.** Each RFD instance registers and heartbeats with the API
-   (host, port, place id, player count) so `POST /api/games/:id/join` can pick
-   a server and `/games/:id` can show live player counts.
+3. **Server registry (implemented in Phase 3).** Each RFD instance gets an
+   identity and credential from `npm run server -- --game … --host … --port …`
+   and its wrapper heartbeats `POST /api/internal/servers/:id/heartbeat` every
+   30 s. See `docs/phase-3-games.md` for the credential design and the
+   production secret-injection plan.
 4. **Least privilege.** Run RFD under a dedicated unprivileged account with
    network egress limited to the API and asset hosts. Keep its credentials out
    of this repository.

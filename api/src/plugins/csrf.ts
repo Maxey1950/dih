@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import csrf from '@fastify/csrf-protection';
 import { AppError } from '../errors.js';
+import { isInternalApi } from '../auth/session.js';
 
 /**
  * CSRF protection for cookie-authenticated, state-changing requests.
@@ -16,7 +17,8 @@ import { AppError } from '../errors.js';
  *     present and not in WEB_ORIGINS.
  *
  * Login and registration are covered too (prevents login CSRF). SameSite=Lax
- * is kept as an extra layer, not relied on alone.
+ * is kept as an extra layer, not relied on alone. /api/internal/* is exempt:
+ * it ignores cookies and uses per-server bearer credentials.
  */
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -35,7 +37,9 @@ export const csrfPlugin = fp(async (app) => {
   const allowedOrigins = new Set(app.config.WEB_ORIGINS);
 
   app.addHook('onRequest', (request, reply, done) => {
-    if (!UNSAFE.has(request.method) || !request.url.startsWith('/api/')) return done();
+    // /api/internal/* is authenticated by a bearer credential, not cookies, so
+    // CSRF does not apply (and cookies are ignored there entirely).
+    if (!UNSAFE.has(request.method) || !request.url.startsWith('/api/') || isInternalApi(request.url)) return done();
     const origin = request.headers.origin;
     if (origin !== undefined && !allowedOrigins.has(origin)) {
       return done(new AppError(403, 'CSRF_INVALID', 'Request origin not allowed.'));

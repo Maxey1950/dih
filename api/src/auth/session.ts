@@ -130,10 +130,22 @@ async function resolveSession(prisma: PrismaClient, config: Config, request: Fas
   return { user: session.user, sessionId: session.id };
 }
 
-/** Registers the resolver: every /api/* request gets `request.auth` (optional auth by default). */
+/** True for the machine-to-machine namespace, where user sessions never apply. */
+export function isInternalApi(url: string): boolean {
+  return url.startsWith('/api/internal/');
+}
+
+/**
+ * Registers the resolver: every /api/* request gets `request.auth` (optional
+ * auth by default). /api/internal/* is skipped entirely, so a user or admin
+ * cookie can never authenticate a game-server request.
+ */
 export const sessionPlugin = fp(async (app) => {
   app.decorateRequest('auth', null);
   app.addHook('onRequest', async (request) => {
-    request.auth = request.url.startsWith('/api/') ? await resolveSession(app.prisma, app.config, request) : null;
+    request.auth =
+      request.url.startsWith('/api/') && !isInternalApi(request.url)
+        ? await resolveSession(app.prisma, app.config, request)
+        : null;
   });
 });

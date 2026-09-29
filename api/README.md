@@ -7,6 +7,9 @@ npm run dev -w @revival/api              # http://127.0.0.1:4000 (reads env from
 npm test                                 # needs PostgreSQL; see "Tests" below
 npm run sessions:cleanup                 # delete expired sessions (cron this in production)
 npm run user:set-role -w @revival/api -- <username> admin
+npm run seed:dev                         # sample games (development only)
+npm run server -- --game <id|placeId> --host <h> --port <p>   # provision a game server (prints credential once)
+npm run servers:list / npm run servers:reap
 ```
 
 Routes, the session/CSRF design, rate limits and presence are documented in
@@ -19,7 +22,9 @@ Layout:
 - `src/auth/password.ts`: argon2id hashing
 - `src/plugins/csrf.ts`: CSRF token plus Origin check for POST/PUT/PATCH/DELETE
 - `src/users/serialize.ts`: allow-list serializers (no hashes, emails or security fields)
-- `src/routes/*`: auth, users, social (friends/follows), admin (read-only)
+- `src/routes/*`: auth, users, social (friends/follows), games, internal-servers, admin (read-only)
+- `src/servers/*`: server credentials, provisioning, liveness policy (30 s heartbeat, 90 s stale)
+- `src/games/*`: player-count aggregation, game serializers
 
 ## Tests
 

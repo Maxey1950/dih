@@ -12,10 +12,11 @@ AlphaBlox 2016-style frontend (web/)
 
 | Directory | Status (Phase 1) |
 |---|---|
-| `web/` | AlphaBlox frontend (Next 16 / React 19). Register, login, logout, profile, people, friends, followers and settings work against the API. |
-| `api/` | Fastify + TypeScript. Server-side sessions (HttpOnly cookie, hashed tokens), argon2id, CSRF, rate limits, users and the social graph. See [`docs/phase-2-accounts.md`](docs/phase-2-accounts.md). |
+| `web/` | AlphaBlox frontend (Next 16 / React 19). Accounts, profiles, people, friends/followers, settings and games (list, detail, create/edit) work against the API. |
+| `api/` | Fastify + TypeScript. Sessions, users and the social graph ([`docs/phase-2-accounts.md`](docs/phase-2-accounts.md)); games and the game-server registry with heartbeats ([`docs/phase-3-games.md`](docs/phase-3-games.md)). |
 | `shared/` | Zod schemas and TypeScript types for the API contract and the central username/password rules. |
-| `database/` | Prisma 7 schema and migrations for users, sessions, friendships, follows and games (PostgreSQL). |
+| `database/` | Prisma 7 schema and migrations for users, sessions, friendships, follows, games and game servers (PostgreSQL). |
+| `dev-tools/` | **Development only.** Game-server heartbeat simulator (no execution of any kind). |
 | `launcher/` | README only: the planned `ourrevival://join?ticket=…` flow. |
 | `rfd/` | README only: RFD v347 integration notes. Nothing is downloaded or executed. |
 | `infra/` | `docker-compose.yml` for local PostgreSQL. |

@@ -11,8 +11,10 @@ import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
 import { socialRoutes } from './routes/social.js';
 import { adminRoutes } from './routes/admin.js';
+import { gameRoutes } from './routes/games.js';
+import { internalServerRoutes } from './routes/internal-servers.js';
 
-export const API_VERSION = '0.2.0';
+export const API_VERSION = '0.3.0';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -112,6 +114,8 @@ export async function buildServer({ config, prisma }: ServerDeps): Promise<Fasti
   await app.register(userRoutes);
   await app.register(socialRoutes);
   await app.register(adminRoutes);
+  await app.register(gameRoutes);
+  await app.register(internalServerRoutes);
 
   return app;
 }

@@ -5,8 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { useAuth } from '../../../../../contexts/AuthContext';
-import { usersApi, friendsApi, errorMessage } from '../../../../../lib/api';
-import { listGamesByCreator } from '../../../../../lib/games';
+import { usersApi, friendsApi, gamesApi, errorMessage } from '../../../../../lib/api';
 import UserAvatar from '../../../../../components/UserAvatar';
 
 /**
@@ -95,7 +94,7 @@ export default function UserProfile() {
       try {
         await loadProfile();
         await loadFriends();
-        const games = await listGamesByCreator(userId);
+        const { games } = await gamesApi.byUser(userId, { limit: 24 }).catch(() => ({ games: [] }));
         if (!cancelled) setOwnerGames(games);
       } catch (err) {
         if (!cancelled) setError(err?.status === 404 ? 'This user could not be found.' : errorMessage(err, 'Failed to fetch profile'));

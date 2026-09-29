@@ -17,7 +17,12 @@
     "dev:web": "npm run dev --prefix web",
     "build:web": "npm run build --prefix web",
     "audit:all": "npm audit && npm audit --prefix web",
-    "sessions:cleanup": "npm run sessions:cleanup -w @revival/api"
+    "sessions:cleanup": "npm run sessions:cleanup -w @revival/api",
+    "server": "npm run server:provision -w @revival/api --",
+    "servers:list": "npm run servers:list -w @revival/api",
+    "servers:reap": "npm run servers:reap -w @revival/api",
+    "seed:dev": "npm run seed:dev -w @revival/api",
+    "dev:simulate-server": "node dev-tools/game-server-simulator/simulate.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.19.0"

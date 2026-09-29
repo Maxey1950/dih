@@ -197,6 +197,21 @@ export const friendsApi = {
   remove: (userId) => api.delete(`/api/friends/${seg(userId)}`),
 };
 
+export const gamesApi = {
+  /** sort: 'featured' | 'updated' | 'players'. Returns { games, page, limit, total, totalPages }. */
+  list: ({ sort, page, limit } = {}) => api.get('/api/games', { query: { sort, page, limit } }),
+  /** { game } — 404 for private games unless you own them. */
+  get: (id) => api.get(`/api/games/${seg(id)}`),
+  /** Public live-server list: { servers: [{ id, playerCount, maxPlayers, status }] }. */
+  servers: (id) => api.get(`/api/games/${seg(id)}/servers`),
+  byUser: (userId, { page, limit } = {}) => api.get(`/api/users/${seg(userId)}/games`, { query: { page, limit } }),
+  create: ({ name, description, maxPlayers, isPublic }) => api.post('/api/games', { name, description, maxPlayers, isPublic }),
+  /** patch: { name?, description?, maxPlayers?, isPublic? } */
+  update: (id, patch) => api.patch(`/api/games/${seg(id)}`, patch),
+  /** Soft delete (unpublish and hide). */
+  remove: (id) => api.delete(`/api/games/${seg(id)}`),
+};
+
 /**
  * Features whose backend does not exist yet. Shared UI (the navbar) checks
  * these so it does not poll endpoints that would only return 404.
@@ -246,6 +261,8 @@ export const adminApi = {
   ban: (userId, { reason, expiresAt }) => api.post(`/api/admin/users/${seg(userId)}/ban`, { reason, expiresAt }),
   unban: (userId) => api.delete(`/api/admin/users/${seg(userId)}/ban`),
   setRole: (userId, role) => api.put(`/api/admin/users/${seg(userId)}/role`, { role }),
+  /** Read-only game-server registry view (no addresses or credentials). */
+  servers: () => api.get('/api/admin/servers'),
   reports: ({ type, status } = {}) => api.get('/api/admin/reports', { query: { type, status } }),
   updateReport: (id, { status }) => api.patch(`/api/admin/reports/${seg(id)}`, { status }),
 };

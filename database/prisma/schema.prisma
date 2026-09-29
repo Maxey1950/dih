@@ -125,25 +125,69 @@ model Follow {
   @@map("follows")
 }
 
-/// A game/place listing. Live player counts come from the game-server
-/// registry (later phase), not from this table.
+/// A game/place listing. Owned by exactly one User (the creator); only the
+/// creator or an admin may edit it. Live state (servers, player counts) is
+/// NOT stored here; it lives in GameServer and is aggregated at read time.
 model Game {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String   @db.VarChar(100)
-  description  String   @default("") @db.VarChar(4000)
-  creatorId    String   @map("creator_id") @db.Uuid
-  creator      User     @relation(fields: [creatorId], references: [id], onDelete: Restrict)
-  genre        String?  @db.VarChar(50)
-  maxPlayers   Int      @default(12) @map("max_players")
-  thumbnailUrl String?  @map("thumbnail_url") @db.VarChar(512)
-  isPublic     Boolean  @default(false) @map("is_public")
-  visits       BigInt   @default(0)
-  upVotes      Int      @default(0) @map("up_votes")
-  downVotes    Int      @default(0) @map("down_votes")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(uuid()) @db.Uuid
+  /// Numeric place identifier handed to the game runtime later (RFD place
+  /// ids are numeric). Allocated by the database; never set by clients.
+  placeId      Int       @unique @default(autoincrement()) @map("place_id")
+  name         String    @db.VarChar(50)
+  description  String    @default("") @db.VarChar(1000)
+  creatorId    String    @map("creator_id") @db.Uuid
+  creator      User      @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+  genre        String?   @db.VarChar(50)
+  maxPlayers   Int       @default(12) @map("max_players")
+  /// Set by seeds/admins only (no uploads yet). null = site default thumbnail.
+  thumbnailUrl String?   @map("thumbnail_url") @db.VarChar(512)
+  isPublic     Boolean   @default(false) @map("is_public")
+  /// Admin-curated flag used by the "Featured" sort.
+  isFeatured   Boolean   @default(false) @map("is_featured")
+  visits       BigInt    @default(0)
+  upVotes      Int       @default(0) @map("up_votes")
+  downVotes    Int       @default(0) @map("down_votes")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  /// Soft delete ("unpublish and remove"). Deleted games are hidden from
+  /// everyone except admins; data is kept for moderation/audit.
+  deletedAt    DateTime? @map("deleted_at")
+
+  servers GameServer[]
 
   @@index([creatorId])
-  @@index([isPublic, updatedAt])
+  @@index([isPublic, deletedAt, updatedAt])
+  @@index([isFeatured])
   @@map("games")
+}
+
+enum GameServerStatus {
+  starting
+  online
+  draining
+  offline
+}
+
+/// A live game-server instance (later: an RFD v347 server process).
+/// Authenticates to /api/internal/servers/* with a random credential; only
+/// SHA-256(credential) is stored. host/port are INTERNAL routing data and are
+/// never included in public API responses.
+model GameServer {
+  id              String           @id @default(uuid()) @db.Uuid
+  gameId          String           @map("game_id") @db.Uuid
+  game            Game             @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  credentialHash  String           @unique @map("credential_hash") @db.Char(64)
+  host            String           @db.VarChar(255)
+  port            Int
+  status          GameServerStatus @default(offline)
+  playerCount     Int              @default(0) @map("player_count")
+  maxPlayers      Int              @map("max_players")
+  startedAt       DateTime?        @map("started_at")
+  lastHeartbeatAt DateTime?        @map("last_heartbeat_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([gameId, status, lastHeartbeatAt])
+  @@index([status, lastHeartbeatAt])
+  @@map("game_servers")
 }

@@ -1,4 +1,4 @@
-# launcher/ — `ourrevival://` protocol handler (documentation only in Phase 1)
+# launcher/ — `ourrevival://` protocol handler (documentation only; implementation is Phase 4)
 
 Nothing is implemented here yet. This document records the planned flow so
 that the web, API and RFD pieces are built against the same contract.
@@ -10,7 +10,8 @@ web: user clicks Play on /games/[id]
   → playGame(gameId)                      web/src/lib/games.js  (single integration point)
   → POST /api/games/:id/join              session cookie + CSRF check
       api: verify session, not banned, game playable
-      api: pick an RFD v347 server from the registry
+      api: pick an RFD v347 server from the registry (Phase 3: game_servers,
+           status online, heartbeat < 90 s old, free slots; see docs/phase-3-games.md)
       api: ticket = 256-bit random (base64url), store SHA-256(ticket) with
            { userId, gameId, serverId, expiresAt = now + ~60 s, usedAt = null }
       ← { launchUrl: "ourrevival://join?ticket=<ticket>" }   (no host/port sent to the browser)
