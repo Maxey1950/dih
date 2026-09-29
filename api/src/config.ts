@@ -32,6 +32,10 @@ const EnvSchema = z
     RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().min(1).default(600),
     /** Games a single IP may create per hour. */
     RATE_LIMIT_GAME_CREATE_MAX: z.coerce.number().int().min(1).default(20),
+    /** Join tickets a single user may request per minute. */
+    RATE_LIMIT_JOIN_MAX: z.coerce.number().int().min(1).default(5),
+    /** Launcher resolve calls per IP per minute. */
+    RATE_LIMIT_RESOLVE_MAX: z.coerce.number().int().min(1).default(30),
   })
   .transform((env) => ({
     ...env,

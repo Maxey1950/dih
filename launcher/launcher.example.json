@@ -1,0 +1,6 @@
+{
+  "apiBaseUrl": "https://play.example.com",
+  "rfdExecutable": "C:\\Program Files\\RFD\\RFD.exe",
+  "rfdArgsPrefix": ["player"],
+  "allowedServerHosts": ["games.example.com"]
+}

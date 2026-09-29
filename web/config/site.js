@@ -9,6 +9,8 @@ export const siteConfig = {
   // Public origin of the website, e.g. https://example.com (used for metadata only).
   url: process.env.SITE_URL || '',
   ogImage: '/images/ValkLogo.png',
+  /** Where the "Download Launcher" button points (empty = button disabled). */
+  launcherDownloadUrl: '',
   social: {
     discord: '',
     youtube: '',

@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import csrf from '@fastify/csrf-protection';
 import { AppError } from '../errors.js';
-import { isInternalApi } from '../auth/session.js';
+import { isInternalApi, isLauncherApi } from '../auth/session.js';
 
 /**
  * CSRF protection for cookie-authenticated, state-changing requests.
@@ -39,7 +39,11 @@ export const csrfPlugin = fp(async (app) => {
   app.addHook('onRequest', (request, reply, done) => {
     // /api/internal/* is authenticated by a bearer credential, not cookies, so
     // CSRF does not apply (and cookies are ignored there entirely).
-    if (!UNSAFE.has(request.method) || !request.url.startsWith('/api/') || isInternalApi(request.url)) return done();
+    // /api/launcher/* is called by the native launcher with the join ticket as
+    // its only proof; cookies are ignored there too, so CSRF does not apply.
+    if (!UNSAFE.has(request.method) || !request.url.startsWith('/api/') || isInternalApi(request.url) || isLauncherApi(request.url)) {
+      return done();
+    }
     const origin = request.headers.origin;
     if (origin !== undefined && !allowedOrigins.has(origin)) {
       return done(new AppError(403, 'CSRF_INVALID', 'Request origin not allowed.'));

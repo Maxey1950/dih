@@ -16,7 +16,8 @@
     "server:revoke": "node dist/cli/server-revoke.js",
     "servers:list": "node dist/cli/servers-list.js",
     "servers:reap": "node dist/cli/servers-reap.js",
-    "seed:dev": "node dist/cli/dev-seed.js"
+    "seed:dev": "node dist/cli/dev-seed.js",
+    "tickets:cleanup": "node dist/cli/tickets-cleanup.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

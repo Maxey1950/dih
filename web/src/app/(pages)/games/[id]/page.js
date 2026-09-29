@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { approvalRating, playGame } from '../../../../lib/games';
 import { gamesApi, errorMessage } from '../../../../lib/api';
+import { siteConfig } from '../../../../../config/site';
 
 const REFRESH_MS = 30_000;
 
@@ -22,7 +23,8 @@ export default function Page() {
   const [loadError, setLoadError] = useState(null);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [showPlayModal, setShowPlayModal] = useState(false);
-  const [playMessage, setPlayMessage] = useState('');
+  // { kind: 'launching' } or { kind: 'error', reason, message }
+  const [playState, setPlayState] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState('stats');
 
@@ -65,10 +67,8 @@ export default function Page() {
     setIsPlaying(true);
     try {
       const result = await playGame(game.id);
-      if (!result.ok) {
-        setPlayMessage(result.message);
-        setShowPlayModal(true);
-      }
+      setPlayState(result.ok ? { kind: 'launching' } : { kind: 'error', reason: result.reason, message: result.message });
+      setShowPlayModal(true);
     } finally {
       setIsPlaying(false);
     }
@@ -209,18 +209,35 @@ export default function Page() {
                     <div className="modal fade show d-block" aria-labelledby="playModalLabel" aria-modal="true" role="dialog">
                       <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content border-0 shadow">
-                          <div className="modal-header bg-success text-white">
-                            <h5 className="modal-title" id="playModalLabel">Launch Game</h5>
+                          <div className={`modal-header ${playState?.kind === 'launching' ? 'bg-success' : 'bg-primary'} text-white`}>
+                            <h5 className="modal-title" id="playModalLabel">{playState?.kind === 'launching' ? 'Starting Game...' : 'Launch Game'}</h5>
                             <button type="button" className="btn-close btn-close-white" onClick={closePlayModal} aria-label="Close"></button>
                           </div>
-                          <div className="modal-body text-center">
-                            <i className="bi bi-download fs-1 text-success d-block mb-3"></i>
-                            <p className="mb-2">{playMessage}</p>
-                            <p className="text-body-secondary small mb-3">The launcher is still under development. Please check back later for updates.</p>
-                            <button type="button" className="btn btn-success disabled"><i className="bi bi-download me-2"></i>Download Launcher</button>
-                          </div>
+                          {playState?.kind === 'launching' ? (
+                            <div className="modal-body text-center">
+                              <div className="spinner-border text-success mb-3" role="status"><span className="visually-hidden">Starting...</span></div>
+                              <p className="mb-2">Your game is starting in the {siteConfig.name} launcher.</p>
+                              <p className="text-body-secondary small mb-3">
+                                If nothing happens, the launcher may not be installed. Install it, then press Play again
+                                (each Play link works once and expires after 90 seconds).
+                              </p>
+                              {siteConfig.launcherDownloadUrl ? (
+                                <a href={siteConfig.launcherDownloadUrl} className="btn btn-success"><i className="bi bi-download me-2"></i>Download Launcher</a>
+                              ) : (
+                                <button type="button" className="btn btn-success disabled"><i className="bi bi-download me-2"></i>Download Launcher</button>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="modal-body text-center">
+                              <i className="bi bi-controller fs-1 text-primary d-block mb-3"></i>
+                              <p className="mb-3">{playState?.message}</p>
+                              {playState?.reason === 'UNAUTHENTICATED' && (
+                                <Link href={`/login?returnUrl=${encodeURIComponent(`/games/${game.id}`)}`} className="btn btn-primary">Log In</Link>
+                              )}
+                            </div>
+                          )}
                           <div className="modal-footer d-flex justify-content-end">
-                            <button type="button" className="btn btn-outline-primary" onClick={closePlayModal}>oh, okay</button>
+                            <button type="button" className="btn btn-outline-primary" onClick={closePlayModal}>Close</button>
                           </div>
                         </div>
                       </div>

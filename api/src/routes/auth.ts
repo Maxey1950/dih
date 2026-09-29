@@ -72,6 +72,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/api/auth/logout', async (request, reply) => {
+    // Logging out also revokes the user's unused join tickets.
+    if (request.auth) {
+      await app.prisma.joinTicket.updateMany({
+        where: { userId: request.auth.user.id, redeemedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { revokedAt: new Date() },
+      });
+    }
     await endSession(app, request, reply);
     reply.header('Cache-Control', 'no-store');
     return { ok: true };

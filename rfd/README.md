@@ -1,13 +1,22 @@
-# rfd/ — game runtime (documentation only in Phase 1)
+# rfd/ — game runtime integration
 
 ## Intended runtime
 
 **Roblox Freedom Distribution (RFD), 2018 client/server — version v347.**
 
-This directory will hold our integration with RFD: server configuration, the
-join-ticket validation hook, deployment scripts, and notes on the asset and
-character endpoints RFD expects. It will **not** contain RFD itself or any
-Roblox binaries.
+This directory holds our integration with RFD. It does **not** contain RFD
+itself or any Roblox binaries.
+
+- `GameConfig.revival.toml`: RFD server config template. v347, unsafe users
+  off, and identity hooks wired to the adapter.
+- `adapter/revival_ticket_adapter.py`: stdlib-only Python loaded by RFD's
+  hooks. It redeems the player's one-time join ticket (`-u` user code) with
+  `POST /api/internal/join-tickets/redeem` using this server's credential,
+  maps the backend identity (numeric id + username) into RFD, and fixes RFD's
+  rejoin behavior. Tests: `cd rfd/adapter && python3 -m unittest discover -s tests`.
+
+Details, including the RFD smoke-test procedure (not yet run; no RFD build is
+available here), are in [`docs/phase-4-join-launcher.md`](../docs/phase-4-join-launcher.md).
 
 ## Phase 1 rules
 
@@ -31,7 +40,7 @@ launcher (ourrevival://)  → resolves ticket → starts RFD v347 player
 RFD v347 game server      → validates/redeems ticket with api before admitting the player
 ```
 
-## Requirements for the Phase 2 integration (design notes, not implemented)
+## Integration requirements (implemented in Phases 3–4 unless noted)
 
 1. **Ticket validation before admission.** When a player connects with
    `-u <ticket>`, the RFD server calls the API server-to-server

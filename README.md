@@ -17,8 +17,8 @@ AlphaBlox 2016-style frontend (web/)
 | `shared/` | Zod schemas and TypeScript types for the API contract and the central username/password rules. |
 | `database/` | Prisma 7 schema and migrations for users, sessions, friendships, follows, games and game servers (PostgreSQL). |
 | `dev-tools/` | **Development only.** Game-server heartbeat simulator (no execution of any kind). |
-| `launcher/` | README only: the planned `ourrevival://join?ticket=…` flow. |
-| `rfd/` | README only: RFD v347 integration notes. Nothing is downloaded or executed. |
+| `launcher/` | Rust `ourrevival://join?ticket=…` handler: strict parsing, ticket resolve, argv-only RFD launch. See [`docs/phase-4-join-launcher.md`](docs/phase-4-join-launcher.md). |
+| `rfd/` | RFD v347 GameConfig template plus the join-ticket adapter (redeems tickets server-side). No RFD binaries. |
 | `infra/` | `docker-compose.yml` for local PostgreSQL. |
 | `docs/` | Migration map, dependency security log, legacy/quarantine notes. |
 

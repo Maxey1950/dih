@@ -135,6 +135,11 @@ export function isInternalApi(url: string): boolean {
   return url.startsWith('/api/internal/');
 }
 
+/** Native-launcher namespace: authenticated by the join ticket only, never by cookies. */
+export function isLauncherApi(url: string): boolean {
+  return url.startsWith('/api/launcher/');
+}
+
 /**
  * Registers the resolver: every /api/* request gets `request.auth` (optional
  * auth by default). /api/internal/* is skipped entirely, so a user or admin
@@ -144,7 +149,7 @@ export const sessionPlugin = fp(async (app) => {
   app.decorateRequest('auth', null);
   app.addHook('onRequest', async (request) => {
     request.auth =
-      request.url.startsWith('/api/') && !isInternalApi(request.url)
+      request.url.startsWith('/api/') && !isInternalApi(request.url) && !isLauncherApi(request.url)
         ? await resolveSession(app.prisma, app.config, request)
         : null;
   });

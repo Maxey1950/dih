@@ -210,6 +210,8 @@ export const gamesApi = {
   update: (id, patch) => api.patch(`/api/games/${seg(id)}`, patch),
   /** Soft delete (unpublish and hide). */
   remove: (id) => api.delete(`/api/games/${seg(id)}`),
+  /** One-time join ticket: { ticket, expiresAt, launchUrl }. Never includes a server address. */
+  join: (id) => api.post(`/api/games/${seg(id)}/join`, {}),
 };
 
 /**

@@ -1,10 +1,8 @@
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { z } from 'zod';
+import type { FastifyPluginAsync } from 'fastify';
 import { ServerHeartbeatRequest, ServerStateResponse } from '@revival/shared';
 import type { GameServer } from '@revival/database';
-import { AppError } from '../errors.js';
 import { parse } from '../validate.js';
-import { credentialMatches, parseServerAuthorization } from '../servers/credentials.js';
+import { authenticateServerForPathId } from '../servers/auth.js';
 import { HEARTBEAT_INTERVAL_SECONDS } from '../servers/policy.js';
 
 /**
@@ -22,24 +20,6 @@ import { HEARTBEAT_INTERVAL_SECONDS } from '../servers/policy.js';
  * - The web app's /api proxy does not forward /api/internal/*; game servers
  *   talk to the API directly on the internal network.
  */
-declare module 'fastify' {
-  interface FastifyRequest {
-    gameServer?: GameServer;
-  }
-}
-
-const unauthorized = () => new AppError(401, 'UNAUTHENTICATED', 'Invalid server credentials.');
-
-async function authenticateServer(this: import('fastify').FastifyInstance, request: FastifyRequest) {
-  const params = z.object({ id: z.uuid() }).safeParse(request.params);
-  const credential = parseServerAuthorization(request.headers.authorization);
-  if (!params.success || !credential) throw unauthorized();
-  const server = await this.prisma.gameServer.findUnique({ where: { id: params.data.id } });
-  // Same response for unknown server, wrong credential or another server's credential.
-  if (!server || !credentialMatches(credential, server.credentialHash)) throw unauthorized();
-  request.gameServer = server;
-}
-
 function stateOf(server: GameServer) {
   return ServerStateResponse.parse({
     server: {
@@ -53,7 +33,7 @@ function stateOf(server: GameServer) {
 }
 
 export const internalServerRoutes: FastifyPluginAsync = async (app) => {
-  const opts = { preHandler: authenticateServer.bind(app) };
+  const opts = { preHandler: authenticateServerForPathId(app) };
 
   app.post('/api/internal/servers/:id/heartbeat', opts, async (request) => {
     const server = request.gameServer!;

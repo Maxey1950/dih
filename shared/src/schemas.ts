@@ -216,6 +216,10 @@ export const ApiErrorCode = z.enum([
   'INVALID_CREDENTIALS',
   'USERNAME_TAKEN',
   'CSRF_INVALID',
+  'NO_AVAILABLE_SERVER',
+  'SERVERS_FULL',
+  'TICKET_INVALID',
+  'JOIN_REJECTED',
   'UNAUTHENTICATED',
   'FORBIDDEN',
   'NOT_FOUND',
@@ -318,3 +322,47 @@ export const AdminUser = UserSummary.extend({
   isBanned: z.boolean(),
 }).strict();
 export const AdminUserListResponse = Page.extend({ users: z.array(AdminUser) });
+
+// ---------------------------------------------------------------------------
+// Phase 4: join tickets. Three credential classes are strictly separated:
+//   web session (cookie)  |  join ticket (rvjt_)  |  game-server credential (rvgs_)
+// ---------------------------------------------------------------------------
+
+/** "rvjt_" + 32 random bytes, base64url (43 chars). */
+export const JOIN_TICKET_PATTERN = /^rvjt_[A-Za-z0-9_-]{43}$/;
+export const JoinTicketString = z.string().regex(JOIN_TICKET_PATTERN, 'Invalid ticket');
+
+/** The only URL the launcher accepts: ourrevival://join?ticket=<ticket> */
+export const LAUNCH_URL_SCHEME = 'ourrevival';
+export function buildLaunchUrl(ticket: string): string {
+  return `${LAUNCH_URL_SCHEME}://join?ticket=${ticket}`;
+}
+
+/** POST /api/games/:id/join (browser; session + CSRF). No host/port/server id. */
+export const JoinGameResponse = z
+  .object({ ticket: JoinTicketString, expiresAt: z.iso.datetime(), launchUrl: z.string() })
+  .strict();
+export type JoinGameResponse = z.infer<typeof JoinGameResponse>;
+
+/** POST /api/launcher/ticket/resolve (native launcher; the ticket is the proof). */
+export const LauncherResolveRequest = z.object({ ticket: JoinTicketString }).strict();
+export const LauncherResolveResponse = z
+  .object({
+    game: z.object({ id: Id, placeId: z.number().int().positive(), name: z.string() }).strict(),
+    server: z.object({ host: z.string(), port: z.number().int().min(1).max(65535) }).strict(),
+    player: z.object({ id: Id, numericId: z.number().int().positive(), username: z.string() }).strict(),
+    ticket: z.object({ expiresAt: z.iso.datetime() }).strict(),
+  })
+  .strict();
+export type LauncherResolveResponse = z.infer<typeof LauncherResolveResponse>;
+
+/** POST /api/internal/join-tickets/redeem (game server credential only). */
+export const RedeemTicketRequest = z.object({ ticket: JoinTicketString }).strict();
+export const RedeemTicketResponse = z
+  .object({
+    allowed: z.literal(true),
+    user: z.object({ id: Id, numericId: z.number().int().positive(), username: z.string(), displayName: z.string() }).strict(),
+    game: z.object({ id: Id, placeId: z.number().int().positive() }).strict(),
+  })
+  .strict();
+export type RedeemTicketResponse = z.infer<typeof RedeemTicketResponse>;

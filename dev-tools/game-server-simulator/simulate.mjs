@@ -13,6 +13,10 @@
  *
  *   --once       send one heartbeat and exit (useful to change the player count)
  *   --offline    send a graceful "offline" and exit
+ *   --redeem     redeem the join ticket in $JOIN_TICKET (as a real server would when a
+ *                player connects) and print the identity the API returns; exits 0 if
+ *                allowed, 2 if rejected. The ticket is read from the environment and
+ *                never printed.
  *   (default)    heartbeat every --interval seconds until Ctrl+C, then send "offline"
  */
 import { parseArgs } from 'node:util';
@@ -26,6 +30,7 @@ const { values } = parseArgs({
     interval: { type: 'string', default: '30' },
     once: { type: 'boolean', default: false },
     offline: { type: 'boolean', default: false },
+    redeem: { type: 'boolean', default: false },
   },
   strict: true,
 });
@@ -57,8 +62,27 @@ const beat = () =>
     console.log(`[${new Date().toISOString()}] heartbeat ok: ${s.status} ${s.playerCount}/${s.maxPlayers}`)
   );
 
+async function redeem() {
+  const ticket = process.env.JOIN_TICKET;
+  if (!ticket) throw new Error('Set JOIN_TICKET to redeem.');
+  const res = await fetch(new URL('/api/internal/join-tickets/redeem', api), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticket }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.allowed === true) {
+    console.log(`redeem ok: user ${data.user.username} (numericId ${data.user.numericId}, id ${data.user.id})`);
+    return 0;
+  }
+  console.log(`redeem rejected: HTTP ${res.status} ${data?.error?.details?.reason ?? data?.error?.code ?? ''}`);
+  return 2;
+}
+
 try {
-  if (values.offline) {
+  if (values.redeem) {
+    process.exit(await redeem());
+  } else if (values.offline) {
     const s = await call('offline');
     console.log(`server ${s.id} is now ${s.status}`);
   } else if (values.once) {

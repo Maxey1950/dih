@@ -1,0 +1,68 @@
+# GameConfig for an RFD v347 server behind the OurRevival API.
+# Copy next to revival_ticket_adapter.py and set the environment variables
+# listed in that file. Keys follow RFD commit 510b6e25; review every option
+# against your RFD version before use.
+
+[metadata]
+config_version_wildcard = "*"
+
+[game_setup]
+roblox_version = "v347"
+
+[game_setup.persistence]
+sqlite_path = "_.sqlite"
+# Start each server run with a clean player table (tickets are one-time anyway).
+clear_on_start = true
+
+# --- Identity hooks: the player's -u user code is a one-time join ticket. ---
+[server_core]
+# Never let clients bypass RFD's player database.
+allow_unsafe_users = false
+
+check_user_allowed_call_mode = "python"
+check_user_allowed = '''
+import sys
+if CONFIG_DIR not in sys.path:
+    sys.path.insert(0, CONFIG_DIR)
+import revival_ticket_adapter as _rta
+_rta.configure(config_dir=CONFIG_DIR)
+def check_user_allowed(user_code):
+    return _rta.check_user_allowed(user_code)
+'''
+
+retrieve_user_id_call_mode = "python"
+retrieve_user_id = '''
+import sys
+if CONFIG_DIR not in sys.path:
+    sys.path.insert(0, CONFIG_DIR)
+import revival_ticket_adapter as _rta
+_rta.configure(config_dir=CONFIG_DIR)
+def retrieve_user_id(user_code):
+    return _rta.retrieve_user_id(user_code)
+'''
+
+retrieve_username_call_mode = "python"
+retrieve_username = '''
+import sys
+if CONFIG_DIR not in sys.path:
+    sys.path.insert(0, CONFIG_DIR)
+import revival_ticket_adapter as _rta
+_rta.configure(config_dir=CONFIG_DIR)
+def retrieve_username(user_id_num, user_code):
+    return _rta.retrieve_username(user_id_num, user_code)
+'''
+
+check_user_has_admin_call_mode = "python"
+check_user_has_admin = '''
+def check_user_has_admin(user_id_num, user_code):
+    return False
+'''
+
+retrieve_default_user_code_call_mode = "python"
+retrieve_default_user_code = '''
+def retrieve_default_user_code(*args):
+    return "no-ticket"
+'''
+
+[server_core.place_file]
+rbxl_uri = "place.rbxl"   # Place-file delivery from the API is a later phase.

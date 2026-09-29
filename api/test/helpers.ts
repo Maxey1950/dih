@@ -14,6 +14,8 @@ export function testConfig(overrides: Record<string, string> = {}): Config {
     COOKIE_SECRET: 'test-cookie-secret-that-is-long-enough-000000',
     RATE_LIMIT_AUTH_MAX: '1000',
     RATE_LIMIT_GAME_CREATE_MAX: '1000',
+    RATE_LIMIT_JOIN_MAX: '1000',
+    RATE_LIMIT_RESOLVE_MAX: '1000',
     ...overrides,
   });
 }
@@ -39,7 +41,7 @@ export async function setup(overrides: Record<string, string> = {}): Promise<Tes
 }
 
 export async function resetDb(prisma: PrismaClient): Promise<void> {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE game_servers, follows, friendships, sessions, games, users CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE join_tickets, game_servers, follows, friendships, sessions, games, users CASCADE');
 }
 
 /** A tiny browser: keeps cookies and a CSRF token, like the web app does. */

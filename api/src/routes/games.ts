@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import {
+  JoinGameResponse,
   CreateGameRequest,
   GameListResponse,
   GameResponse,
@@ -15,6 +16,7 @@ import { authOf, requireAuth } from '../auth/guards.js';
 import { livePlayerCounts, publicGameIdsByPlayers } from '../games/aggregate.js';
 import { toGame, toGameSummary } from '../games/serialize.js';
 import { countedServerWhere } from '../servers/policy.js';
+import { issueTicket } from '../tickets/tickets.js';
 
 const ListQuery = PageQuery.extend({
   sort: GameSort.default('featured'),
@@ -167,6 +169,33 @@ export const gameRoutes: FastifyPluginAsync = async (app) => {
     const counts = await livePlayerCounts(prisma, [updated.id]);
     return GameResponse.parse({ game: toGame(updated, counts.get(updated.id) ?? 0, true) });
   });
+
+  // ---- Join: issue a one-time ticket (Phase 4) -----------------------------
+  // Session + CSRF required. The browser never picks a server and never sees
+  // host/port; it only receives the opaque ticket and the launch URL.
+  app.post(
+    '/api/games/:id/join',
+    {
+      preHandler: requireAuth,
+      config: {
+        rateLimit: {
+          max: app.config.RATE_LIMIT_JOIN_MAX,
+          timeWindow: '1 minute',
+          // Per user (the route requires auth); falls back to IP if unauthenticated.
+          keyGenerator: (request) => (request.auth ? `join:${request.auth.user.id}` : `join-ip:${request.ip}`),
+        },
+      },
+    },
+    async (request, reply) => {
+      const viewer = authOf(request).user;
+      const game = await loadGame(parseGameId(request.params));
+      if (!canView(game, viewer) || game.deletedAt) throw errors.notFound('Game not found');
+      const issued = await issueTicket(prisma, viewer.id, game.id);
+      request.log.info({ ticketId: issued.ticketId, gameId: game.id, serverId: issued.serverId, userId: viewer.id }, 'join ticket issued');
+      reply.code(201).header('Cache-Control', 'no-store');
+      return JoinGameResponse.parse({ ticket: issued.ticket, expiresAt: issued.expiresAt.toISOString(), launchUrl: issued.launchUrl });
+    }
+  );
 
   // ---- Delete = soft delete (unpublish + hide), owner or admin -------------
   app.delete('/api/games/:id', { preHandler: requireAuth }, async (request) => {

@@ -34,6 +34,9 @@ enum FriendshipStatus {
 
 model User {
   id                 String    @id @default(uuid()) @db.Uuid
+  /// Stable numeric id for the game runtime (RFD expects integer user ids).
+  /// Allocated by the database; never chosen by clients.
+  numericId          Int       @unique @default(autoincrement()) @map("numeric_id")
   /// Display form of the login name, e.g. "Builderman". Rules: shared/src/validation.ts.
   username           String    @db.VarChar(20)
   /// Lower-cased username; unique, used for login and duplicate checks.
@@ -56,13 +59,14 @@ model User {
   bannedUntil        DateTime? @map("banned_until")
   banReason          String?   @map("ban_reason") @db.VarChar(500)
 
-  sessions               Session[]
-  games                  Game[]
-  friendshipsAsLow       Friendship[] @relation("FriendshipLow")
-  friendshipsAsHigh      Friendship[] @relation("FriendshipHigh")
-  friendRequestsSent     Friendship[] @relation("FriendshipRequester")
-  following              Follow[]     @relation("Follower")
-  followers              Follow[]     @relation("Following")
+  sessions           Session[]
+  games              Game[]
+  friendshipsAsLow   Friendship[] @relation("FriendshipLow")
+  friendshipsAsHigh  Friendship[] @relation("FriendshipHigh")
+  friendRequestsSent Friendship[] @relation("FriendshipRequester")
+  following          Follow[]     @relation("Follower")
+  followers          Follow[]     @relation("Following")
+  joinTickets        JoinTicket[]
 
   @@index([lastOnlineAt])
   @@map("users")
@@ -153,7 +157,8 @@ model Game {
   /// everyone except admins; data is kept for moderation/audit.
   deletedAt    DateTime? @map("deleted_at")
 
-  servers GameServer[]
+  servers     GameServer[]
+  joinTickets JoinTicket[]
 
   @@index([creatorId])
   @@index([isPublic, deletedAt, updatedAt])
@@ -187,7 +192,38 @@ model GameServer {
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
 
+  joinTickets JoinTicket[]
+
   @@index([gameId, status, lastHeartbeatAt])
   @@index([status, lastHeartbeatAt])
   @@map("game_servers")
+}
+
+/// One-time, short-lived authorization for ONE user to join ONE game on ONE
+/// selected game server. The raw ticket ("rvjt_" + 256 random bits) is shown
+/// to the browser once and never stored; only SHA-256(ticket) is kept.
+/// Lifecycle: issued -> (optionally) resolved by the launcher -> redeemed by
+/// the game server, or revoked/expired. Every read checks expiry directly.
+model JoinTicket {
+  id                 String     @id @default(uuid()) @db.Uuid
+  tokenHash          String     @unique @map("token_hash") @db.Char(64)
+  userId             String     @map("user_id") @db.Uuid
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId             String     @map("game_id") @db.Uuid
+  game               Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  serverId           String     @map("server_id") @db.Uuid
+  server             GameServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  createdAt          DateTime   @default(now()) @map("created_at")
+  expiresAt          DateTime   @map("expires_at")
+  /// First successful launcher resolve (does NOT consume the ticket).
+  launcherResolvedAt DateTime?  @map("launcher_resolved_at")
+  resolveCount       Int        @default(0) @map("resolve_count")
+  /// Set exactly once, atomically, by the game server's redemption.
+  redeemedAt         DateTime?  @map("redeemed_at")
+  revokedAt          DateTime?  @map("revoked_at")
+
+  @@index([userId, redeemedAt, revokedAt, expiresAt])
+  @@index([serverId, redeemedAt, revokedAt, expiresAt])
+  @@index([expiresAt])
+  @@map("join_tickets")
 }
