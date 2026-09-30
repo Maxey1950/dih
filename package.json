@@ -23,7 +23,10 @@
     "servers:reap": "npm run servers:reap -w @revival/api",
     "seed:dev": "npm run seed:dev -w @revival/api",
     "dev:simulate-server": "node dev-tools/game-server-simulator/simulate.mjs",
-    "tickets": "npm run tickets:cleanup -w @revival/api"
+    "tickets": "npm run tickets:cleanup -w @revival/api",
+    "launcher:package": "node launcher/packaging/package.mjs",
+    "rfd:smoke": "node dev-tools/rfd-smoke/rfd-smoke.mjs",
+    "e2e:join": "node dev-tools/e2e/join-boundary.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.19.0"

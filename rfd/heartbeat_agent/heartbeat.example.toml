@@ -1,0 +1,31 @@
+# OurRevival heartbeat agent config (EXAMPLE - placeholders only).
+# Copy to a server-only location, e.g. /etc/revival/heartbeat.toml
+# (owner: the game-server account, mode 600). Never commit a filled-in copy.
+
+# Internal API origin. HTTPS anywhere; plain HTTP only to loopback or a
+# private-network IP literal (the API must not be reachable over plain HTTP
+# from the internet).
+api_url = "https://api.internal.example"
+
+# GameServer id printed by `npm run server -- --game <gameId> ...`.
+server_id = "00000000-0000-0000-0000-000000000000"
+
+# Absolute path to a file containing ONLY the rvgs_... credential.
+# POSIX: owned by the game-server account, chmod 600; the agent refuses a
+# group/world-readable file. Alternatively omit this key and set
+# REVIVAL_GAME_SERVER_CREDENTIAL in the service environment.
+# The credential itself may NOT be written in this file.
+credential_file = "/etc/revival/gameserver.credential"
+
+# The join ledger the ticket adapter writes (REVIVAL_JOIN_LEDGER_PATH).
+join_ledger_path = "/var/lib/revival/rfd-server-1/join-ledger.json"
+
+max_players = 12
+
+# Local RFD web port (the port passed to `RFD server --web_port`).
+rfd_host = "127.0.0.1"
+rfd_port = 2005
+
+interval_seconds = 30
+# Joins in this window count toward the (over-)estimated player count.
+player_window_seconds = 1200

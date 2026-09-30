@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { RedeemTicketRequest, RedeemTicketResponse } from '@revival/shared';
 import { AppError } from '../errors.js';
-import { authenticateServerByCredential } from '../servers/auth.js';
+import { authenticateServerByCredential, internalRateLimit } from '../servers/auth.js';
 import { hashTicket } from '../tickets/tickets.js';
 import { ticketProblem, type TicketRejection } from '../tickets/validate.js';
 
@@ -18,7 +18,7 @@ const reject = (reason: TicketRejection) =>
  * backend: the caller cannot supply a username or user id.
  */
 export const internalTicketRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/api/internal/join-tickets/redeem', { preHandler: authenticateServerByCredential(app) }, async (request) => {
+  app.post('/api/internal/join-tickets/redeem', { preHandler: authenticateServerByCredential(app), config: { rateLimit: internalRateLimit(app) } }, async (request) => {
     const server = request.gameServer!;
     const body = RedeemTicketRequest.safeParse(request.body);
     if (!body.success) throw reject('invalid');

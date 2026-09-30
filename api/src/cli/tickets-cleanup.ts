@@ -3,9 +3,11 @@
  * expiry/redemption/revocation directly. Suggested cron: every 10 minutes.
  *   npm run tickets
  * Deletes tickets that expired more than 1 hour ago, and redeemed or revoked
- * tickets older than 24 hours (kept briefly for troubleshooting).
+ * tickets older than 24 hours (kept briefly for troubleshooting). Never deletes
+ * an active ticket; safe to run concurrently (see src/tickets/cleanup.ts).
  */
 import { createPrismaClient } from '@revival/database';
+import { cleanupTickets } from '../tickets/cleanup.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -13,17 +15,9 @@ if (!url) {
   process.exit(1);
 }
 const prisma = createPrismaClient(url);
-const now = Date.now();
-const hourAgo = new Date(now - 60 * 60 * 1000);
-const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
-const { count } = await prisma.joinTicket.deleteMany({
-  where: {
-    OR: [
-      { expiresAt: { lt: hourAgo } },
-      { redeemedAt: { lt: dayAgo } },
-      { revokedAt: { lt: dayAgo } },
-    ],
-  },
-});
-console.log(`Deleted ${count} old join ticket(s).`);
-await prisma.$disconnect();
+try {
+  const count = await cleanupTickets(prisma);
+  console.log(`Deleted ${count} old join ticket(s).`);
+} finally {
+  await prisma.$disconnect();
+}

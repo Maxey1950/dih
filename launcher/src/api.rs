@@ -105,9 +105,13 @@ pub fn parse_resolved(body: &str, allowed_hosts: Option<&[String]>) -> Result<Re
     Ok(r)
 }
 
-pub fn resolve(api_base: &str, ticket: &Ticket, allowed_hosts: Option<&[String]>) -> Result<Resolved, ResolveError> {
+/// TLS: ureq's rustls backend with the bundled webpki root store. Certificate
+/// and hostname validation are always on; there is deliberately no option to
+/// disable them. Plain http is only reachable when the config explicitly
+/// allows a localhost development origin (see config::validate_api_origin).
+pub fn resolve(api_base: &str, ticket: &Ticket, allowed_hosts: Option<&[String]>, timeout_seconds: u64) -> Result<Resolved, ResolveError> {
     let agent = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(timeout_seconds))
         .redirects(0)
         .user_agent(concat!("ourrevival-launcher/", env!("CARGO_PKG_VERSION")))
         .build();
@@ -115,7 +119,8 @@ pub fn resolve(api_base: &str, ticket: &Ticket, allowed_hosts: Option<&[String]>
     let response = agent
         .post(&url)
         .set("Accept", "application/json")
-        .send_json(serde_json::json!({ "ticket": ticket.as_str() }));
+        .set("Content-Type", "application/json")
+        .send_string(&serde_json::json!({ "ticket": ticket.as_str() }).to_string());
     let response = match response {
         Ok(r) => r,
         Err(ureq::Error::Status(404, _)) => return Err(ResolveError::TicketRejected),

@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { ServerHeartbeatRequest, ServerStateResponse } from '@revival/shared';
 import type { GameServer } from '@revival/database';
 import { parse } from '../validate.js';
-import { authenticateServerForPathId } from '../servers/auth.js';
+import { authenticateServerForPathId, internalRateLimit } from '../servers/auth.js';
 import { HEARTBEAT_INTERVAL_SECONDS } from '../servers/policy.js';
 
 /**
@@ -33,7 +33,7 @@ function stateOf(server: GameServer) {
 }
 
 export const internalServerRoutes: FastifyPluginAsync = async (app) => {
-  const opts = { preHandler: authenticateServerForPathId(app) };
+  const opts = { preHandler: authenticateServerForPathId(app), config: { rateLimit: internalRateLimit(app) } };
 
   app.post('/api/internal/servers/:id/heartbeat', opts, async (request) => {
     const server = request.gameServer!;

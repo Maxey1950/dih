@@ -5,6 +5,7 @@ import { JoinGameResponse, LauncherResolveResponse, RedeemTicketResponse } from 
 import { Agent, resetDb, setup, type TestContext } from './helpers.js';
 import { provisionServer } from '../src/servers/provision.js';
 import { hashTicket } from '../src/tickets/tickets.js';
+import { cleanupTickets } from '../src/tickets/cleanup.js';
 import { sessionCookieName } from '../src/auth/session.js';
 
 let ctx: TestContext;
@@ -319,6 +320,15 @@ describe('redemption', () => {
     assert.equal((await redeem(credential, ticket)).statusCode, 200, 'redeemable once the server is healthy again');
   });
 
+  test('a banned user cannot get a ticket, and a pre-ban ticket cannot be resolved', async () => {
+    const { game, player, playerUser } = await world();
+    await onlineServer(ctx.app, game.id);
+    const { ticket } = (await join(player, game.id)).json();
+    await ctx.prisma.user.update({ where: { id: playerUser.id }, data: { bannedUntil: new Date(Date.now() + 3_600_000) } });
+    assert.equal((await join(player, game.id)).statusCode, 401);
+    assert.equal((await resolve(ticket)).statusCode, 404);
+  });
+
   test('logout revokes unused tickets', async () => {
     const { game, player } = await world();
     const { credential } = await onlineServer(ctx.app, game.id);
@@ -386,5 +396,74 @@ describe('credential separation', () => {
       payload: '{}',
     });
     assert.equal(res.statusCode, 404);
+  });
+});
+
+describe('ticket cleanup', () => {
+  const HOUR = 3_600_000;
+  async function seedTickets() {
+    const { game, playerUser } = await world();
+    const { server } = await onlineServer(ctx.app, game.id);
+    const now = Date.now();
+    const base = { userId: playerUser.id, gameId: game.id, serverId: server.id };
+    const rows = {
+      active: { expiresAt: new Date(now + 60_000) },
+      recentlyExpired: { expiresAt: new Date(now - 5 * 60_000) },
+      longExpired: { expiresAt: new Date(now - 2 * HOUR) },
+      recentlyRedeemed: { expiresAt: new Date(now + 60_000), redeemedAt: new Date(now - HOUR / 2) },
+      oldRedeemed: { expiresAt: new Date(now - 25 * HOUR), redeemedAt: new Date(now - 25 * HOUR) },
+      recentlyRevoked: { expiresAt: new Date(now + 60_000), revokedAt: new Date(now - 60_000) },
+      oldRevoked: { expiresAt: new Date(now - 30 * HOUR), revokedAt: new Date(now - 30 * HOUR) },
+      // Age of the row does not matter; only expiry/redemption/revocation do.
+      activeWithOddClock: { expiresAt: new Date(now + 60_000), createdAt: new Date(now - 48 * HOUR) },
+    };
+    const ids: Record<string, string> = {};
+    for (const [name, data] of Object.entries(rows)) {
+      ids[name] = (await ctx.prisma.joinTicket.create({ data: { ...base, createdAt: new Date(data.expiresAt.getTime() - 90_000), ...data, tokenHash: hashTicket(`rvjt_${name.padEnd(43, 'x')}`) } })).id;
+    }
+    return ids;
+  }
+
+  test('deletes only dead tickets and never an active one', async () => {
+    const ids = await seedTickets();
+    assert.equal(await cleanupTickets(ctx.prisma), 3);
+    const left = new Set((await ctx.prisma.joinTicket.findMany({ select: { id: true } })).map((t) => t.id));
+    for (const keep of ['active', 'recentlyExpired', 'recentlyRedeemed', 'recentlyRevoked', 'activeWithOddClock']) assert.ok(left.has(ids[keep]!), keep);
+    for (const gone of ['longExpired', 'oldRedeemed', 'oldRevoked']) assert.ok(!left.has(ids[gone]!), gone);
+  });
+
+  test('concurrent cleanups are safe and idempotent', async () => {
+    await seedTickets();
+    const counts = await Promise.all(Array.from({ length: 6 }, () => cleanupTickets(ctx.prisma)));
+    assert.equal(counts.reduce((a, b) => a + b, 0), 3, 'each dead ticket deleted exactly once in total');
+    assert.equal(await ctx.prisma.joinTicket.count(), 5);
+    assert.equal(await cleanupTickets(ctx.prisma), 0);
+  });
+
+  test('an active ticket stays redeemable after cleanup', async () => {
+    const { game, player } = await world();
+    const { credential } = await onlineServer(ctx.app, game.id);
+    const { ticket } = (await join(player, game.id)).json();
+    await Promise.all([cleanupTickets(ctx.prisma), cleanupTickets(ctx.prisma)]);
+    assert.equal((await redeem(credential, ticket)).statusCode, 200);
+  });
+});
+
+describe('internal rate limits', () => {
+  test('game-server calls use their own budget, not the public global limit', async () => {
+    const small = await setup({ RATE_LIMIT_GLOBAL_MAX: '3', RATE_LIMIT_INTERNAL_MAX: '8' });
+    try {
+      await resetDb(small.prisma);
+      const owner = await small.prisma.user.create({ data: { username: 'rlowner', usernameNormalized: 'rlowner', passwordHash: 'x' } });
+      const game = await small.prisma.game.create({ data: { name: 'RL', creatorId: owner.id, isPublic: true } });
+      const { server, credential } = await provisionServer(small.prisma, { gameId: game.id, host: '10.1.2.3', port: 2005 });
+      const call = () => heartbeat(small.app, server.id, credential, 0, 10);
+      const codes = [];
+      for (let i = 0; i < 9; i++) codes.push((await call()).statusCode);
+      assert.deepEqual(codes.slice(0, 8), Array(8).fill(200), 'more than the global limit of 3');
+      assert.equal(codes[8], 429, 'but the internal budget still applies');
+    } finally {
+      await small.close();
+    }
   });
 });

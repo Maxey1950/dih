@@ -5,3 +5,9 @@ dist/
 .env.*
 !.env.example
 .DS_Store
+
+# Never commit binaries, signing material or server secrets
+*.exe
+*.pfx
+*.p12
+*.credential

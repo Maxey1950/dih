@@ -36,6 +36,13 @@ const EnvSchema = z
     RATE_LIMIT_JOIN_MAX: z.coerce.number().int().min(1).default(5),
     /** Launcher resolve calls per IP per minute. */
     RATE_LIMIT_RESOLVE_MAX: z.coerce.number().int().min(1).default(30),
+    /**
+     * Internal game-server calls (heartbeat/drain/offline/redeem) per source
+     * address per minute. A separate, larger budget than the public global
+     * limit, so a burst of junk joins against one RFD server cannot push that
+     * server's legitimate redemptions into the public limit.
+     */
+    RATE_LIMIT_INTERNAL_MAX: z.coerce.number().int().min(1).default(3000),
   })
   .transform((env) => ({
     ...env,

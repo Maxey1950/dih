@@ -153,10 +153,12 @@ export const UpdateGameRequest = z
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update');
 export type UpdateGameRequest = z.infer<typeof UpdateGameRequest>;
 
-/** Public view of a live server: no host, port, credential or internal state. */
+/**
+ * Public view of a live server: player counts and status only. No server id,
+ * host, port, credential or other infrastructure identity.
+ */
 export const GameServerPublic = z
   .object({
-    id: Id,
     playerCount: z.number().int().nonnegative(),
     maxPlayers: z.number().int().positive(),
     status: z.enum(['online', 'draining']),

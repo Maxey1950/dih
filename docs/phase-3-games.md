@@ -48,7 +48,7 @@ CHECKs. Earlier migrations are unchanged.
 |---|---|---|---|
 | GET | `/api/games?sort=featured\|updated\|players&page=&limit=` | optional | Public, non-deleted games only; limit ≤ 48. Sort orders: `featured` = featured, then visits, then recently updated; `updated` = recently updated; `players` = live players (in SQL, so pagination is correct). |
 | GET | `/api/games/:id` | optional | Private games return 404 unless you are the creator or an admin; deleted games return 404 except for admins. Includes a viewer-specific `canEdit`. |
-| GET | `/api/games/:id/servers` | optional | Live servers only: `{ id, playerCount, maxPlayers, status }`. No host, port or credential. |
+| GET | `/api/games/:id/servers` | optional | Live servers only: `{ playerCount, maxPlayers, status }`. No server id (removed in Phase 4.5), host, port or credential. |
 | GET | `/api/users/:id/games` | optional | The owner also sees their private games. |
 | POST | `/api/games` | user, CSRF, 20/hour/IP | Strict body `{ name, description?, maxPlayers?, isPublic?, genre? }`. The creator comes from the session. |
 | PATCH | `/api/games/:id` | owner or admin, CSRF | Strict body `{ name?, description?, maxPlayers?, isPublic?, genre?, isFeatured? }`. `isFeatured` is admin-only. `creatorId`, `placeId`, counters, thumbnail and `deletedAt` are rejected (400). |

@@ -39,3 +39,19 @@ export function authenticateServerByCredential(app: FastifyInstance) {
     request.gameServer = server;
   };
 }
+
+/**
+ * Route-level rate limit for /api/internal/*: its own bucket per source
+ * address ("internal:<ip>"), separate from and larger than the public global
+ * limit. Game servers reach the internal API from the private network only
+ * (the web proxy never forwards /api/internal), so the source address is the
+ * game-server host. The adapter makes one redemption call per join, however
+ * often RFD repeats its hooks.
+ */
+export function internalRateLimit(app: FastifyInstance) {
+  return {
+    max: app.config.RATE_LIMIT_INTERNAL_MAX,
+    timeWindow: '1 minute',
+    keyGenerator: (request: FastifyRequest) => `internal:${request.ip}`,
+  };
+}

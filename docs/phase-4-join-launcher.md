@@ -178,10 +178,10 @@ verified against RFD source commit `510b6e25`, which I read but did not run.
 - **Hooks overridden:** `check_user_allowed` (RFD's default is `lambda *a: True`), `retrieve_user_id`,
   `retrieve_username`, `check_user_has_admin` (always false), and `retrieve_default_user_code` (returns an invalid
   code, so a player with no ticket can't join). `allow_unsafe_users = false`.
-- **Redeem once, then cache:** RFD calls `check_user_allowed` several times per join (join-data, then
-  `/rfd/verify-player` with a 7 s cache). The adapter redeems on the **first** call with the server credential and
-  keeps the decision locally for **120 s**. After that the same code is refused, which bounds replay of an old
-  ticket against this server even though RFD's sqlite remembers `user_code → player`.
+- **Join-state machine (Phase 4.5; replaces the Phase 4 120 s cache):** the Phase 4 adapter cached `allowed=true`
+  for 120 s per ticket, which let a second, independent connection reuse a redeemed ticket on the same server. It
+  was replaced by an explicit per-ticket state machine that allows exactly one connection per redemption. See
+  [`phase-4.5-rfd-hardening.md`](phase-4.5-rfd-hardening.md).
 - **Rejoin fix-up (RFD integration bug found and fixed):** RFD's `players` table has `UNIQUE(id_number)` and
   `UNIQUE(username)` `ON CONFLICT IGNORE`, and RFD loops calling `retrieve_user_id` until an insert sticks. With a new
   ticket per join, a **returning player would hang RFD forever**; this was reproduced in a test with the fix
@@ -198,6 +198,9 @@ verified against RFD source commit `510b6e25`, which I read but did not run.
 
 ### RFD smoke test: not run (blocker)
 
+Phase 4.5 automates these steps: `npm run rfd:smoke -- --rfd-path <RFD> --place <place.rbxl>`
+(see [`phase-4.5-rfd-hardening.md`](phase-4.5-rfd-hardening.md)). Still not run against a real RFD build.
+
 No RFD v347 build is present, and running RFD needs its Roblox client/RCC binaries (RFD downloads them from the
 internet) plus Windows or Wine. Per instructions, nothing was downloaded. To run it on a private network:
 
@@ -207,8 +210,7 @@ internet) plus Windows or Wine. Per instructions, nothing was downloaded. To run
    credential in a file readable only by the RFD service account.
 3. Start `RFD server -p 2005 --config GameConfig.revival.toml` with `REVIVAL_API_URL`,
    `REVIVAL_GAME_SERVER_CREDENTIAL_FILE` and `REVIVAL_RFD_SQLITE_PATH` set. Bind it to the private interface only.
-4. Run a heartbeat wrapper: the simulator, or a small service posting `/heartbeat` every 30 s with RFD's player
-   count. A production wrapper is a TODO.
+4. Run the heartbeat agent (`rfd/heartbeat_agent/`, added in Phase 4.5).
 5. Log in on the website, press Play. The launcher resolves the ticket and starts
    `RFD.exe player -h <ip> -p 2005 -u <ticket>`; RFD calls the adapter, which redeems.
 6. Expect the player to appear with the website username and numeric id, and a replayed ticket to be refused.

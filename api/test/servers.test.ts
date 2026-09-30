@@ -218,6 +218,9 @@ describe('internal API isolation', () => {
     for (const secret of ['10.20.30.40', '53640', credential, server.credentialHash, 'credential', 'host']) {
       assert.ok(!all.includes(secret), `leaked: ${secret}`);
     }
+    const publicList = JSON.parse(bodies[0]!).servers;
+    assert.deepEqual(Object.keys(publicList[0]).sort(), ['maxPlayers', 'playerCount', 'status']);
+    assert.ok(!bodies[0]!.includes(server.id) && !bodies[1]!.includes(server.id) && !bodies[2]!.includes(server.id), 'no server id in public responses');
     const adminView = JSON.parse(bodies[3]!).servers[0];
     assert.deepEqual(Object.keys(adminView).sort(), ['game', 'id', 'isStale', 'lastHeartbeatAt', 'maxPlayers', 'playerCount', 'startedAt', 'status']);
   });

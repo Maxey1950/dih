@@ -64,7 +64,7 @@ mod tests {
     const URL: &str = "ourrevival://join?ticket=rvjt_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE";
 
     fn config() -> Config {
-        Config { api_base_url: "https://x.example".into(), rfd_executable: PathBuf::from("/opt/rfd/RFD"), rfd_args_prefix: vec!["player".into()], allowed_server_hosts: None }
+        Config { api_base_url: "https://x.example".into(), rfd_executable: PathBuf::from("/opt/rfd/RFD"), rfd_args_prefix: vec!["player".into()], allowed_server_hosts: None, development_allow_http_localhost: false, rfd_allow_auto_download: false, request_timeout_seconds: 10 }
     }
 
     #[test]
@@ -102,5 +102,29 @@ mod tests {
         let bad = handle_launch(&["ourrevival://join?ticket=x&host=y".into()], &config(), |_| Err(ResolveError::TicketRejected), &rec);
         assert!(matches!(bad, Err(LaunchError::BadUrl(_))));
         assert!(rec.0.borrow().is_empty());
+    }
+
+    #[test]
+    fn url_cannot_override_origin_executable_or_server() {
+        let rec = Recorder(RefCell::new(vec![]));
+        for url in [
+            "ourrevival://join?ticket=rvjt_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE&api=https://evil.example",
+            "ourrevival://join?api=https://evil.example&ticket=rvjt_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE",
+            "ourrevival://join?ticket=rvjt_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE&rfd=C:\\evil.exe",
+            "ourrevival://join?ticket=rvjt_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE&port=1",
+            "ourrevival://evil.example/join?ticket=rvjt_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE",
+            "http://evil.example/join?ticket=rvjt_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE",
+        ] {
+            let mut called = false;
+            let err = handle_launch(&[url.into()], &config(), |_| { called = true; Err(ResolveError::TicketRejected) }, &rec);
+            assert!(matches!(err, Err(LaunchError::BadUrl(_))), "{url}");
+            assert!(!called, "no network call for {url}");
+        }
+        // A valid link: the program is the configured one, and the resolver sees only the ticket.
+        let ok = r#"{"game":{"id":"g","placeId":7,"name":"A"},"server":{"host":"10.0.0.5","port":2005},"player":{"id":"u","numericId":3,"username":"b"},"ticket":{"expiresAt":"x"}}"#;
+        let mut seen = String::new();
+        handle_launch(&[URL.into()], &config(), |t| { seen = t.as_str().to_string(); parse_resolved(ok, None) }, &rec).unwrap();
+        assert_eq!(seen, URL.trim_start_matches("ourrevival://join?ticket="));
+        assert_eq!(rec.0.borrow()[0].program, PathBuf::from("/opt/rfd/RFD"));
     }
 }

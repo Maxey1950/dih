@@ -321,7 +321,7 @@ export default function Page() {
                 ) : (
                   <ul className="list-group list-group-flush">
                     {servers.map((server, i) => (
-                      <li key={server.id} className="list-group-item d-flex justify-content-between align-items-center px-0">
+                      <li key={i} className="list-group-item d-flex justify-content-between align-items-center px-0">
                         <span>
                           <i className="bi bi-hdd-network me-2 text-primary"></i>Server {i + 1}
                           {server.status === 'draining' && <span className="badge bg-secondary ms-2">Closing</span>}

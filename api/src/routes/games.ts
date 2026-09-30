@@ -133,7 +133,8 @@ export const gameRoutes: FastifyPluginAsync = async (app) => {
     if (!canView(game, request.auth?.user)) throw errors.notFound('Game not found');
     const servers = await prisma.gameServer.findMany({
       where: { gameId: game.id, ...countedServerWhere() },
-      select: { id: true, playerCount: true, maxPlayers: true, status: true },
+      // No id/host/port: the browser never receives infrastructure identity.
+      select: { playerCount: true, maxPlayers: true, status: true },
       orderBy: [{ playerCount: 'desc' }, { id: 'asc' }],
       take: 100,
     });

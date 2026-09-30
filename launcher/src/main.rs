@@ -36,7 +36,8 @@ fn main() -> ExitCode {
             };
             let allowed = cfg.allowed_server_hosts.clone();
             let base = config::api_base(&cfg).to_string();
-            match handle_launch(&args, &cfg, |t| api::resolve(&base, t, allowed.as_deref()), &SystemRunner) {
+            let timeout = cfg.request_timeout_seconds;
+            match handle_launch(&args, &cfg, |t| api::resolve(&base, t, allowed.as_deref(), timeout), &SystemRunner) {
                 Ok(()) => ok("started RFD"),
                 Err(e) => fail(&e.to_string()),
             }

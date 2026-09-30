@@ -20,10 +20,14 @@ pub struct LaunchSpec {
     pub args: Vec<String>,
 }
 
-/// `<rfd> <prefix...> -h <host> -p <port> -u <ticket>` (RFD `player` subcommand:
-/// -h/-p are the RFD web server host/port, -u is the user code).
+/// `<rfd> <prefix...> [--skip_download] -h <host> -p <port> -u <ticket>` (RFD
+/// `player` subcommand: -h/-p are the RFD web server host/port, -u is the user
+/// code; --skip_download stops RFD fetching binaries from the internet).
 pub fn build_launch_spec(config: &Config, resolved: &Resolved, ticket: &Ticket) -> LaunchSpec {
     let mut args = config.rfd_args_prefix.clone();
+    if !config.rfd_allow_auto_download {
+        args.push("--skip_download".to_string());
+    }
     args.extend([
         "-h".to_string(),
         resolved.server.host.clone(),
@@ -76,6 +80,9 @@ mod tests {
             rfd_executable: PathBuf::from("/opt/rfd/RFD"),
             rfd_args_prefix: vec!["player".into()],
             allowed_server_hosts: None,
+            development_allow_http_localhost: false,
+            rfd_allow_auto_download: false,
+            request_timeout_seconds: 10,
         };
         let body = r#"{"game":{"id":"g","placeId":7,"name":"Arena"},"server":{"host":"10.0.0.5","port":2005},"player":{"id":"u","numericId":3,"username":"bob"},"ticket":{"expiresAt":"x"}}"#;
         let resolved = parse_resolved(body, None).unwrap();
@@ -88,7 +95,10 @@ mod tests {
         let (config, resolved, ticket) = fixture();
         let spec = build_launch_spec(&config, &resolved, &ticket);
         assert_eq!(spec.program, PathBuf::from("/opt/rfd/RFD"));
-        assert_eq!(spec.args, vec!["player", "-h", "10.0.0.5", "-p", "2005", "-u", TICKET]);
+        assert_eq!(spec.args, vec!["player", "--skip_download", "-h", "10.0.0.5", "-p", "2005", "-u", TICKET]);
+        let mut allow = config.clone();
+        allow.rfd_allow_auto_download = true;
+        assert_eq!(build_launch_spec(&allow, &resolved, &ticket).args, vec!["player", "-h", "10.0.0.5", "-p", "2005", "-u", TICKET]);
     }
 
     #[test]
@@ -97,8 +107,8 @@ mod tests {
         // Even if validation were bypassed, a hostile host is ONE argv entry, never split or shell-parsed.
         resolved.server = ResolvedServer { host: "a.example --evil x".into(), port: 1 };
         let spec = build_launch_spec(&config, &resolved, &ticket);
-        assert_eq!(spec.args.len(), 7);
-        assert_eq!(spec.args[2], "a.example --evil x");
+        assert_eq!(spec.args.len(), 8);
+        assert_eq!(spec.args[3], "a.example --evil x");
     }
 
     #[test]
